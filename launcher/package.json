@@ -1,0 +1,39 @@
+{
+  "name": "mc-launcher",
+  "version": "0.1.0",
+  "description": "Custom Minecraft launcher with cloud modpacks",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "package": "electron-builder"
+  },
+  "dependencies": {
+    "@azure/msal-node": "^2.6.0",
+    "axios": "^1.6.0",
+    "electron-store": "^8.1.0",
+    "fs-extra": "^11.2.0",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "react-router-dom": "^6.23.0"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.0",
+    "electron-vite": "^2.2.0",
+    "typescript": "^5.4.0"
+  },
+  "build": {
+    "appId": "com.lazyoneshot.mc-launcher",
+    "productName": "MC Launcher",
+    "directories": { "output": "dist" },
+    "linux": { "target": "AppImage" },
+    "win": { "target": "nsis" },
+    "mac": { "target": "dmg" }
+  }
+}

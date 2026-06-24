@@ -1,0 +1,16 @@
+node_modules/
+dist/
+out/
+.env
+*.local
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+launcher/dist/
+launcher/out/
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+*.pem
+*.key
