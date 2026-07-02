@@ -4,6 +4,7 @@ import Store from 'electron-store'
 import * as fs from 'fs-extra'
 import FormData from 'form-data'
 import type { AuthTokens } from '../../shared/types'
+import { ipcMain, dialog } from 'electron'
 
 const store = new Store<{ tokens: AuthTokens }>()
 const API = process.env.API_URL || 'http://localhost:8000'
@@ -45,4 +46,15 @@ export function modpackHandlers() {
     await axios.delete(`${API}/modpacks/${packId}/mods/${modId}`, { headers: authHeader() })
     return true
   })
+
+  ipcMain.handle('modpacks:pickModFile', async () => {
+  const result = await dialog.showOpenDialog({
+    title: 'Select Mod JAR(s)',
+    filters: [{ name: 'Mod JAR', extensions: ['jar'] }],
+    properties: ['openFile', 'multiSelections']
+  })
+  if (result.canceled) return []
+  return result.filePaths
+  
+})
 }

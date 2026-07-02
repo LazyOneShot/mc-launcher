@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { ipcMain, BrowserWindow, shell } from 'electron'
 import { PublicClientApplication } from '@azure/msal-node'
 import Store from 'electron-store'

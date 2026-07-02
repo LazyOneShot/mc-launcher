@@ -10,7 +10,8 @@ contextBridge.exposeInMainWorld('api', {
   createModpack:  (meta: object)              => ipcRenderer.invoke('modpacks:create', meta),
   uploadMod:      (packId: string, fp: string) => ipcRenderer.invoke('modpacks:uploadMod', packId, fp),
   removeMod:      (packId: string, modId: string) => ipcRenderer.invoke('modpacks:removeMod', packId, modId),
-
+  
+  pickModFile: () => ipcRenderer.invoke('modpacks:pickModFile'),
   syncAndLaunch:  (packId: string)            => ipcRenderer.invoke('launch:syncAndLaunch', packId),
   onLaunchProgress: (cb: (msg: string) => void) => ipcRenderer.on('launch:progress', (_e, msg) => cb(msg)),
   onDeviceCode: (cb: (data: { userCode: string; verificationUri: string }) => void) =>

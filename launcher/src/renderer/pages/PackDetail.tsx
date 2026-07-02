@@ -21,6 +21,16 @@ export default function PackDetail() {
     setLaunching(false)
   }
 
+  const handleUpload = async () => {
+  if (!id) return
+  const filePaths: string[] = await window.api.pickModFile()
+  if (filePaths.length === 0) return
+  for (const filePath of filePaths) {
+    const mod = await window.api.uploadMod(id, filePath)
+    setPack(p => p ? { ...p, mods: [...p.mods, mod] } : p)
+    }
+  }
+
   if (!pack) return <div style={{ padding:32 }}>Loading...</div>
   return (
     <div style={{ padding:32 }}>
@@ -35,7 +45,7 @@ export default function PackDetail() {
           style={{ padding:'12px 32px', background: launching ? '#555' : '#2ecc71', border:'none', borderRadius:8, color:'#fff', fontWeight:700, fontSize:16, cursor:'pointer' }}>
           {launching ? 'Syncing & Launching...' : '▶  Play'}
         </button>
-        <button style={{ padding:'12px 20px', background:'#3a3a5c', border:'none', borderRadius:8, color:'#fff', cursor:'pointer' }}>
+        <button onClick={handleUpload} style={{ padding:'12px 20px', background:'#3a3a5c', border:'none', borderRadius:8, color:'#fff', cursor:'pointer' }}>
           + Upload Mod
         </button>
       </div>
