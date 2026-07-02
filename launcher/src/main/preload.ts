@@ -12,5 +12,7 @@ contextBridge.exposeInMainWorld('api', {
   removeMod:      (packId: string, modId: string) => ipcRenderer.invoke('modpacks:removeMod', packId, modId),
 
   syncAndLaunch:  (packId: string)            => ipcRenderer.invoke('launch:syncAndLaunch', packId),
-  onLaunchProgress: (cb: (msg: string) => void) => ipcRenderer.on('launch:progress', (_e, msg) => cb(msg))
+  onLaunchProgress: (cb: (msg: string) => void) => ipcRenderer.on('launch:progress', (_e, msg) => cb(msg)),
+  onDeviceCode: (cb: (data: { userCode: string; verificationUri: string }) => void) =>
+  ipcRenderer.on('auth:deviceCode', (_e, data) => cb(data)),
 })

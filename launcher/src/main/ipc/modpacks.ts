@@ -6,7 +6,7 @@ import FormData from 'form-data'
 import type { AuthTokens } from '../../shared/types'
 
 const store = new Store<{ tokens: AuthTokens }>()
-const API = process.env.API_URL || 'https://api.harv.com/mc'
+const API = process.env.API_URL || 'http://localhost:8000'
 
 function authHeader() {
   const t = store.get('tokens') as AuthTokens | undefined
