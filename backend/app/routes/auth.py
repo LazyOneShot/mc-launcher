@@ -13,11 +13,11 @@ async def login(body: LoginRequest):
     try:
         profile = await verify_microsoft_token(body.ms_access_token)
     except Exception as e:
-        # Print full traceback to backend console
         traceback.print_exc()
         raise HTTPException(401, f"Microsoft auth failed: {str(e)}")
     return {
         "token": create_jwt(profile["id"], profile["name"]),
         "minecraft_uuid": profile["id"],
-        "minecraft_username": profile["name"]
+        "minecraft_username": profile["name"],
+        "mc_access_token": profile["_mc_access_token"]
     }

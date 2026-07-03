@@ -1,10 +1,9 @@
-import { ipcMain } from 'electron'
+import { ipcMain, dialog } from 'electron'
 import axios from 'axios'
 import Store from 'electron-store'
 import * as fs from 'fs-extra'
 import FormData from 'form-data'
 import type { AuthTokens } from '../../shared/types'
-import { ipcMain, dialog } from 'electron'
 
 const store = new Store<{ tokens: AuthTokens }>()
 const API = process.env.API_URL || 'http://localhost:8000'
@@ -31,6 +30,16 @@ export function modpackHandlers() {
     return data
   })
 
+  ipcMain.handle('modpacks:update', async (_e, id: string, updateData: object) => {
+    const { data } = await axios.patch(`${API}/modpacks/${id}`, updateData, { headers: authHeader() })
+    return data
+  })
+
+  ipcMain.handle('modpacks:delete', async (_e, id: string) => {
+    await axios.delete(`${API}/modpacks/${id}`, { headers: authHeader() })
+    return true
+  })
+
   ipcMain.handle('modpacks:uploadMod', async (_e, packId: string, filePath: string) => {
     const form = new FormData()
     form.append('file', fs.createReadStream(filePath))
@@ -48,13 +57,12 @@ export function modpackHandlers() {
   })
 
   ipcMain.handle('modpacks:pickModFile', async () => {
-  const result = await dialog.showOpenDialog({
-    title: 'Select Mod JAR(s)',
-    filters: [{ name: 'Mod JAR', extensions: ['jar'] }],
-    properties: ['openFile', 'multiSelections']
+    const result = await dialog.showOpenDialog({
+      title: 'Select Mod JAR(s)',
+      filters: [{ name: 'Mod JAR', extensions: ['jar'] }],
+      properties: ['openFile', 'multiSelections']
+    })
+    if (result.canceled) return []
+    return result.filePaths
   })
-  if (result.canceled) return []
-  return result.filePaths
-  
-})
 }

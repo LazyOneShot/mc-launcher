@@ -8,13 +8,12 @@ export default function Login() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    window.api.getSession().then((s: unknown) => { if (s) nav('/home') })
-    window.api.onDeviceCode((data: { userCode: string; verificationUri: string }) => setDeviceCode(data))
+    window.api.getSession().then((s: any) => { if (s) nav('/home') })
+    window.api.onDeviceCode((d: any) => setDeviceCode(d))
   }, [])
 
   const handleLogin = async () => {
-    setLoading(true)
-    setError('')
+    setLoading(true); setError('')
     try {
       await window.api.login()
       nav('/home')
@@ -26,36 +25,31 @@ export default function Login() {
   }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', gap:24, padding:32 }}>
-      <h1 style={{ fontSize:36, fontWeight:700 }}>MC Launcher</h1>
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100vh', gap:20, padding:32 }}>
+      <div style={{ textAlign:'center', marginBottom:20 }}>
+        <h1 style={{ fontSize:38, fontWeight:800, letterSpacing:-1, marginBottom:8 }}>MC Launcher</h1>
+        <p style={{ color:'#8888aa', fontSize:14 }}>Cloud-synced modpacks for friends</p>
+      </div>
 
       {!deviceCode && !loading && (
         <>
-          <p style={{ color:'#888' }}>Sign in with your Microsoft account to continue</p>
-          <button
-            onClick={handleLogin}
-            style={{ padding:'12px 32px', borderRadius:8, border:'none', background:'#00b4d8', color:'#fff', fontSize:16, cursor:'pointer', fontWeight:600 }}
-          >
+          <button onClick={handleLogin} className="btn btn-primary" style={{ padding:'12px 32px', fontSize:15 }}>
             Sign in with Microsoft
           </button>
-          {error && <p style={{ color:'#e74c3c', fontSize:14 }}>{error}</p>}
+          {error && <p style={{ color:'#f87171', fontSize:13 }}>{error}</p>}
         </>
       )}
 
-      {loading && !deviceCode && (
-        <p style={{ color:'#888' }}>Opening browser...</p>
-      )}
+      {loading && !deviceCode && <p style={{ color:'#8888aa' }}>Opening browser...</p>}
 
       {deviceCode && (
-        <div style={{ textAlign:'center', background:'#16213e', padding:32, borderRadius:12, maxWidth:420 }}>
-          <p style={{ color:'#aaa', marginBottom:16 }}>Your browser should have opened. Enter this code at:</p>
-          <p style={{ color:'#00b4d8', marginBottom:16 }}>{deviceCode.verificationUri}</p>
-          <div style={{ background:'#0d0d1a', padding:'16px 32px', borderRadius:8, marginBottom:16 }}>
-            <span style={{ fontSize:32, fontWeight:700, fontFamily:'monospace', letterSpacing:8 }}>
-              {deviceCode.userCode}
-            </span>
+        <div className="card" style={{ textAlign:'center', maxWidth:420 }}>
+          <p style={{ color:'#a5b4fc', marginBottom:12, fontSize:14 }}>Enter this code at</p>
+          <p style={{ color:'#4a7ce8', marginBottom:16, fontSize:13, wordBreak:'break-all' }}>{deviceCode.verificationUri}</p>
+          <div style={{ background:'#08091a', padding:'20px 32px', borderRadius:10, marginBottom:12 }}>
+            <span style={{ fontSize:32, fontWeight:800, fontFamily:'Consolas, monospace', letterSpacing:8 }}>{deviceCode.userCode}</span>
           </div>
-          <p style={{ color:'#555', fontSize:13 }}>Waiting for you to sign in...</p>
+          <p style={{ color:'#6b6b8a', fontSize:12 }}>Waiting for sign-in...</p>
         </div>
       )}
     </div>

@@ -13,6 +13,7 @@
     "axios": "^1.6.0",
     "electron-store": "^8.1.0",
     "fs-extra": "^11.2.0",
+    "minecraft-launcher-core": "^3.18.2",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-router-dom": "^6.23.0"
@@ -31,9 +32,17 @@
   "build": {
     "appId": "com.lazyoneshot.mc-launcher",
     "productName": "MC Launcher",
-    "directories": { "output": "dist" },
-    "linux": { "target": "AppImage" },
-    "win": { "target": "nsis" },
-    "mac": { "target": "dmg" }
+    "directories": {
+      "output": "dist"
+    },
+    "linux": {
+      "target": "AppImage"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    }
   }
 }

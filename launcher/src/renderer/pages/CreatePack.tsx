@@ -6,48 +6,59 @@ const MC_VERSIONS = ['1.21.1', '1.20.4', '1.20.1', '1.19.4', '1.18.2']
 
 export default function CreatePack() {
   const nav = useNavigate()
-  const [form, setForm] = useState({ name:'', id:'', description:'', mc_version:'1.21.1', loader:'neoforge', loader_version:'' })
+  const [form, setForm] = useState({ name:'', id:'', description:'', mc_version:'1.20.1', loader:'forge', loader_version:'47.3.0' })
+  const [error, setError] = useState('')
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
-  const inp: React.CSSProperties = { width:'100%', padding:'10px 14px', borderRadius:8, border:'1px solid #333', background:'#0d0d1a', color:'#fff', fontSize:15 }
+
+  const handleCreate = async () => {
+    setError('')
+    try {
+      const p: any = await window.api.createModpack(form)
+      nav(`/pack/${p.id}`)
+    } catch (e: any) {
+      setError(e?.response?.data?.detail || 'Failed to create pack')
+    }
+  }
+
   return (
-    <div style={{ maxWidth:540, margin:'40px auto', padding:32 }}>
-      <button onClick={() => nav('/home')} style={{ background:'none', border:'none', color:'#888', cursor:'pointer', marginBottom:20 }}>← Back</button>
-      <h1 style={{ marginBottom:32 }}>Create Modpack</h1>
-      <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
-        <div>
-          <label style={{ display:'block', marginBottom:6, color:'#aaa', fontSize:14 }}>Pack Name</label>
-          <input style={inp} value={form.name} onChange={e => set('name', e.target.value)} placeholder="Luke's Survival Pack" />
-        </div>
-        <div>
-          <label style={{ display:'block', marginBottom:6, color:'#aaa', fontSize:14 }}>Pack ID <span style={{ color:'#555' }}>(friends use this to join)</span></label>
-          <input style={inp} value={form.id} onChange={e => set('id', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} placeholder="lukes-survival" />
-        </div>
-        <div>
-          <label style={{ display:'block', marginBottom:6, color:'#aaa', fontSize:14 }}>Description</label>
-          <input style={inp} value={form.description} onChange={e => set('description', e.target.value)} placeholder="Optional" />
-        </div>
-        <div style={{ display:'flex', gap:12 }}>
-          <div style={{ flex:1 }}>
-            <label style={{ display:'block', marginBottom:6, color:'#aaa', fontSize:14 }}>MC Version</label>
-            <select style={inp} value={form.mc_version} onChange={e => set('mc_version', e.target.value)}>
-              {MC_VERSIONS.map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
+    <div className="page" style={{ maxWidth:560 }}>
+      <button onClick={() => nav('/home')} className="back-link">← Back</button>
+      <h1 style={{ marginBottom:24, fontSize:24 }}>Create Modpack</h1>
+      <div className="card">
+        <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          <div>
+            <label style={{ display:'block', marginBottom:6, color:'#a5b4fc', fontSize:13 }}>Pack Name</label>
+            <input className="input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="My Awesome Pack" />
           </div>
-          <div style={{ flex:1 }}>
-            <label style={{ display:'block', marginBottom:6, color:'#aaa', fontSize:14 }}>Mod Loader</label>
-            <select style={inp} value={form.loader} onChange={e => set('loader', e.target.value)}>
-              {LOADERS.map(l => <option key={l} value={l}>{l}</option>)}
-            </select>
+          <div>
+            <label style={{ display:'block', marginBottom:6, color:'#a5b4fc', fontSize:13 }}>Pack ID <span style={{ color:'#6b6b8a', fontWeight:'normal' }}>(friends use this to join)</span></label>
+            <input className="input" value={form.id} onChange={e => set('id', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} placeholder="my-awesome-pack" />
           </div>
+          <div>
+            <label style={{ display:'block', marginBottom:6, color:'#a5b4fc', fontSize:13 }}>Description</label>
+            <input className="input" value={form.description} onChange={e => set('description', e.target.value)} placeholder="Optional" />
+          </div>
+          <div style={{ display:'flex', gap:10 }}>
+            <div style={{ flex:1 }}>
+              <label style={{ display:'block', marginBottom:6, color:'#a5b4fc', fontSize:13 }}>MC Version</label>
+              <select className="select" value={form.mc_version} onChange={e => set('mc_version', e.target.value)}>
+                {MC_VERSIONS.map(v => <option key={v}>{v}</option>)}
+              </select>
+            </div>
+            <div style={{ flex:1 }}>
+              <label style={{ display:'block', marginBottom:6, color:'#a5b4fc', fontSize:13 }}>Loader</label>
+              <select className="select" value={form.loader} onChange={e => set('loader', e.target.value)}>
+                {LOADERS.map(l => <option key={l}>{l}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label style={{ display:'block', marginBottom:6, color:'#a5b4fc', fontSize:13 }}>Loader Version</label>
+            <input className="input" value={form.loader_version} onChange={e => set('loader_version', e.target.value)} placeholder="e.g. 47.3.0" />
+          </div>
+          {error && <p style={{ color:'#f87171', fontSize:13 }}>{error}</p>}
+          <button onClick={handleCreate} className="btn btn-primary" style={{ padding:'12px', marginTop:8 }}>Create Pack</button>
         </div>
-        <div>
-          <label style={{ display:'block', marginBottom:6, color:'#aaa', fontSize:14 }}>Loader Version</label>
-          <input style={inp} value={form.loader_version} onChange={e => set('loader_version', e.target.value)} placeholder="e.g. 21.1.0" />
-        </div>
-        <button onClick={() => window.api.createModpack(form).then((p: { id: string }) => nav(`/pack/${p.id}`))}
-          style={{ padding:'13px 0', background:'#00b4d8', border:'none', borderRadius:8, color:'#fff', fontWeight:700, fontSize:16, cursor:'pointer', marginTop:8 }}>
-          Create Pack
-        </button>
       </div>
     </div>
   )

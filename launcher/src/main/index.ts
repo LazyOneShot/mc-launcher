@@ -1,8 +1,10 @@
+import 'dotenv/config'
 import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'path'
 import { authHandlers } from './ipc/auth'
 import { modpackHandlers } from './ipc/modpacks'
 import { launchHandlers } from './ipc/launch'
+import { memberHandlers } from './ipc/members'
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -37,6 +39,7 @@ app.whenReady().then(() => {
   authHandlers()
   modpackHandlers()
   launchHandlers()
+  memberHandlers()
 })
 
 app.on('window-all-closed', () => {
