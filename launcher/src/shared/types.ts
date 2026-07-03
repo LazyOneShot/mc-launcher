@@ -25,6 +25,7 @@ export interface ModpackFull extends ModpackMeta {
 
 export interface AuthTokens {
   access_token: string
+  mc_access_token: string
   minecraft_username: string
   minecraft_uuid: string
 }

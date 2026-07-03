@@ -8,7 +8,6 @@ bearer = HTTPBearer()
 
 async def verify_microsoft_token(ms_token: str) -> dict:
     async with httpx.AsyncClient() as c:
-        # 1. Xbox Live
         xbl_res = await c.post("https://user.auth.xboxlive.com/user/authenticate", json={
             "Properties": {"AuthMethod": "RPS", "SiteName": "user.auth.xboxlive.com", "RpsTicket": f"d={ms_token}"},
             "RelyingParty": "http://auth.xboxlive.com", "TokenType": "JWT"
@@ -17,14 +16,12 @@ async def verify_microsoft_token(ms_token: str) -> dict:
         xbl_token = xbl["Token"]
         user_hash = xbl["DisplayClaims"]["xui"][0]["uhs"]
 
-        # 2. XSTS
         xsts_res = await c.post("https://xsts.auth.xboxlive.com/xsts/authorize", json={
             "Properties": {"SandboxId": "RETAIL", "UserTokens": [xbl_token]},
             "RelyingParty": "rp://api.minecraftservices.com/", "TokenType": "JWT"
         })
         xsts_token = xsts_res.json()["Token"]
 
-        # 3. Minecraft
         mc_res = await c.post("https://api.minecraftservices.com/authentication/login_with_xbox", json={
             "identityToken": f"XBL3.0 x={user_hash};{xsts_token}"
         })
@@ -32,11 +29,12 @@ async def verify_microsoft_token(ms_token: str) -> dict:
         mc_data = mc_res.json()
         mc_token = mc_data["access_token"]
 
-        # 4. Profile
         profile_res = await c.get("https://api.minecraftservices.com/minecraft/profile",
-                             headers={"Authorization": f"Bearer {mc_token}"})
+                                   headers={"Authorization": f"Bearer {mc_token}"})
         print("Minecraft profile response:", profile_res.status_code, profile_res.text)
-        return profile_res.json()
+        profile = profile_res.json()
+        profile["_mc_access_token"] = mc_token
+        return profile
 
 def create_jwt(mc_uuid: str, mc_name: str) -> str:
     return jwt.encode({"sub": mc_uuid, "name": mc_name}, settings.jwt_secret, algorithm=settings.jwt_algorithm)
