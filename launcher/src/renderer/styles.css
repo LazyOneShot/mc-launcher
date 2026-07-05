@@ -8,7 +8,62 @@ body {
   height: 100vh;
 }
 
-#root { height: 100vh; overflow-y: auto; }
+#root { height: 100vh; display: flex; flex-direction: column; }
+
+.app-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* ── Custom title bar ─────────────────────────────────────────────── */
+.titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 32px;
+  background: #0a0b18;
+  border-bottom: 1px solid #1a1c30;
+  flex-shrink: 0;
+  user-select: none;
+}
+.titlebar-drag {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  -webkit-app-region: drag;   /* makes area draggable */
+}
+.titlebar-title {
+  font-size: 12px;
+  color: #8888aa;
+  font-weight: 500;
+}
+.titlebar-controls {
+  display: flex;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+.titlebar-btn {
+  width: 46px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: #8888aa;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.1s;
+}
+.titlebar-btn:hover {
+  background: #1a1c30;
+  color: #fff;
+}
+.titlebar-close:hover {
+  background: #dc2626;
+  color: #fff;
+}
 
 /* Scrollbars */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -62,7 +117,7 @@ body {
 }
 .input:focus, .select:focus { outline: none; border-color: #4a7ce8; }
 
-/* Card containers */
+/* Cards */
 .card {
   background: #16182e;
   border: 1px solid #22243d;
@@ -70,7 +125,7 @@ body {
   padding: 20px;
 }
 
-/* Log console — CONTAINED with word-wrap */
+/* Log console */
 .log-console {
   background: #08091a;
   border: 1px solid #1a1c30;
@@ -89,7 +144,7 @@ body {
 .log-line.error { color: #f87171; }
 .log-line.info { color: #a5b4fc; }
 
-/* Mod list container — scrollable, doesn't grow the page */
+/* Mod list */
 .mod-list-container {
   max-height: 320px;
   overflow-y: auto;
@@ -109,7 +164,6 @@ body {
 .mod-row:hover { background: #14162a; }
 .mod-filename { font-family: 'Consolas', monospace; color: #d0d0e0; }
 
-/* Icon button */
 .icon-btn {
   background: none;
   border: none;
@@ -121,21 +175,15 @@ body {
 }
 .icon-btn:hover { color: #f87171; background: #1a1c30; }
 
-/* Section headers */
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
 }
-.section-header h2 {
-  font-size: 16px;
-  font-weight: 600;
-  color: #b0b0d0;
-}
+.section-header h2 { font-size: 16px; font-weight: 600; color: #b0b0d0; }
 .section-header .count { color: #6b6b8a; font-size: 14px; font-weight: normal; }
 
-/* Layout */
 .page { padding: 32px; max-width: 900px; margin: 0 auto; }
 
 .back-link {

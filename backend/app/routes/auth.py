@@ -19,5 +19,21 @@ async def login(body: LoginRequest):
         "token": create_jwt(profile["id"], profile["name"]),
         "minecraft_uuid": profile["id"],
         "minecraft_username": profile["name"],
-        "mc_access_token": profile["_mc_access_token"]
+        "mc_access_token": profile["_mc_access_token"],
+        "mc_expires_in": 86400
+    }
+
+@router.post("/refresh")
+async def refresh(body: LoginRequest):
+    try:
+        profile = await verify_microsoft_token(body.ms_access_token)
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(401, f"Token refresh failed: {str(e)}")
+    return {
+        "token": create_jwt(profile["id"], profile["name"]),
+        "minecraft_uuid": profile["id"],
+        "minecraft_username": profile["name"],
+        "mc_access_token": profile["_mc_access_token"],
+        "mc_expires_in": 86400
     }

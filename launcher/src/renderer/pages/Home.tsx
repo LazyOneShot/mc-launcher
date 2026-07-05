@@ -5,6 +5,7 @@ import type { ModpackMeta } from '../../shared/types'
 export default function Home() {
   const [packs, setPacks] = useState<ModpackMeta[]>([])
   const [joinId, setJoinId] = useState('')
+  const [joinError, setJoinError] = useState('')
   const [session, setSession] = useState<any>(null)
   const nav = useNavigate()
 
@@ -13,6 +14,17 @@ export default function Home() {
     window.api.getSession().then(setSession)
   }, [])
 
+  const handleJoin = async () => {
+    if (!joinId.trim()) return
+    setJoinError('')
+    try {
+      await window.api.joinModpack(joinId.trim())
+      nav(`/pack/${joinId.trim()}`)
+    } catch (e: any) {
+      setJoinError(e?.response?.data?.detail || 'Failed to join pack')
+    }
+  }
+
   const handleLogout = async () => {
     await window.api.logout()
     nav('/login')
@@ -20,7 +32,6 @@ export default function Home() {
 
   return (
     <div className="page">
-      {/* Top bar */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:32 }}>
         <div>
           <h1 style={{ fontSize:24, fontWeight:700 }}>Modpacks</h1>
@@ -32,16 +43,15 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Join by ID */}
       <div className="card" style={{ marginBottom:24 }}>
         <label style={{ display:'block', marginBottom:8, color:'#8888aa', fontSize:13 }}>Join a friend's pack</label>
         <div style={{ display:'flex', gap:8 }}>
-          <input className="input" style={{ flex:1 }} placeholder="Enter pack ID..." value={joinId} onChange={e => setJoinId(e.target.value)} onKeyDown={e => e.key === 'Enter' && joinId && nav(`/pack/${joinId}`)} />
-          <button onClick={() => joinId && nav(`/pack/${joinId}`)} className="btn btn-success">Join</button>
+          <input className="input" style={{ flex:1 }} placeholder="Enter pack ID..." value={joinId} onChange={e => setJoinId(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleJoin()} />
+          <button onClick={handleJoin} className="btn btn-success">Join</button>
         </div>
+        {joinError && <p style={{ color:'#f87171', fontSize:13, marginTop:8 }}>{joinError}</p>}
       </div>
 
-      {/* Pack grid */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:12 }}>
         {packs.map(pack => (
           <div key={pack.id} onClick={() => nav(`/pack/${pack.id}`)} className="card" style={{ cursor:'pointer', transition:'border-color 0.2s' }}

@@ -1,12 +1,12 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-const LOADERS = ['neoforge', 'forge', 'fabric', 'quilt']
+const LOADERS = ['neoforge', 'forge', 'fabric']
 const MC_VERSIONS = ['1.21.1', '1.20.4', '1.20.1', '1.19.4', '1.18.2']
 
 export default function CreatePack() {
   const nav = useNavigate()
-  const [form, setForm] = useState({ name:'', id:'', description:'', mc_version:'1.20.1', loader:'forge', loader_version:'47.3.0' })
+  const [form, setForm] = useState({ name:'', id:'', description:'', mc_version:'1.20.1', loader:'forge', loader_version:'' })
   const [error, setError] = useState('')
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
 
@@ -53,8 +53,8 @@ export default function CreatePack() {
             </div>
           </div>
           <div>
-            <label style={{ display:'block', marginBottom:6, color:'#a5b4fc', fontSize:13 }}>Loader Version</label>
-            <input className="input" value={form.loader_version} onChange={e => set('loader_version', e.target.value)} placeholder="e.g. 47.3.0" />
+            <label style={{ display:'block', marginBottom:6, color:'#a5b4fc', fontSize:13 }}>Loader Version <span style={{ color:'#6b6b8a', fontWeight:'normal' }}>(leave blank for latest)</span></label>
+            <input className="input" value={form.loader_version} onChange={e => set('loader_version', e.target.value)} placeholder="Leave blank for latest" />
           </div>
           {error && <p style={{ color:'#f87171', fontSize:13 }}>{error}</p>}
           <button onClick={handleCreate} className="btn btn-primary" style={{ padding:'12px', marginTop:8 }}>Create Pack</button>

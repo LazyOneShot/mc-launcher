@@ -4,7 +4,7 @@ import Store from 'electron-store'
 import type { AuthTokens } from '../../shared/types'
 
 const store = new Store<{ tokens: AuthTokens }>()
-const API = process.env.API_URL || 'http://localhost:8000'
+const API = process.env.API_URL || 'https://mc-api.daboismc.win'
 
 function authHeader() {
   const t = store.get('tokens') as AuthTokens | undefined
@@ -27,6 +27,15 @@ export function memberHandlers() {
     return data
   })
 
+  ipcMain.handle('members:changeRole', async (_e, packId: string, uuid: string, role: string) => {
+    const { data } = await axios.patch(
+      `${API}/modpacks/${packId}/members/${uuid}`,
+      { role },
+      { headers: authHeader() }
+    )
+    return data
+  })
+
   ipcMain.handle('members:remove', async (_e, packId: string, uuid: string) => {
     await axios.delete(`${API}/modpacks/${packId}/members/${uuid}`, { headers: authHeader() })
     return true
@@ -41,6 +50,3 @@ export function memberHandlers() {
     return data
   })
 }
-
-// These go in modpackHandlers() in modpacks.ts but added here for convenience
-// Wire updateModpack and deleteModpack into modpacks.ts instead

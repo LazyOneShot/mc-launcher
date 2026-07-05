@@ -6,7 +6,9 @@ import FormData from 'form-data'
 import type { AuthTokens } from '../../shared/types'
 
 const store = new Store<{ tokens: AuthTokens }>()
-const API = process.env.API_URL || 'http://localhost:8000'
+const localOpts = new Store<{ launchOptions?: Record<string, any> }>({ name: 'launch-options' })
+
+const API = process.env.API_URL || 'https://mc-api.daboismc.win'
 
 function authHeader() {
   const t = store.get('tokens') as AuthTokens | undefined
@@ -27,6 +29,12 @@ export function modpackHandlers() {
 
   ipcMain.handle('modpacks:create', async (_e, meta: object) => {
     const { data } = await axios.post(`${API}/modpacks`, meta, { headers: authHeader() })
+    return data
+  })
+
+  // Join a pack — creates a viewer membership
+  ipcMain.handle('modpacks:join', async (_e, id: string) => {
+    const { data } = await axios.post(`${API}/modpacks/${id}/join`, {}, { headers: authHeader() })
     return data
   })
 
@@ -64,5 +72,18 @@ export function modpackHandlers() {
     })
     if (result.canceled) return []
     return result.filePaths
+  })
+
+  // ── Local per-user launch options ──────────────────────────────────────────
+  ipcMain.handle('launchOpts:get', (_e, packId: string) => {
+    const all = localOpts.get('launchOptions', {}) as Record<string, any>
+    return all[packId] || null
+  })
+
+  ipcMain.handle('launchOpts:set', (_e, packId: string, opts: any) => {
+    const all = localOpts.get('launchOptions', {}) as Record<string, any>
+    all[packId] = opts
+    localOpts.set('launchOptions', all)
+    return true
   })
 }

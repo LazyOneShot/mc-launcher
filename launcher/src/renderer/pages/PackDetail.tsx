@@ -16,28 +16,13 @@ interface LaunchOptions {
   java_path: string
 }
 
-const LOADERS = ['neoforge', 'forge', 'fabric', 'quilt']
-const MC_VERSIONS = ['1.21.1', '1.20.4', '1.20.1', '1.19.4', '1.18.2']
+const LOADERS = ['neoforge', 'forge', 'fabric']
 const RAM_OPTIONS = ['1G', '2G', '3G', '4G', '6G', '8G', '12G', '16G']
+const FALLBACK_MC_VERSIONS = ['1.21.1', '1.20.4', '1.20.1', '1.19.4', '1.18.2']
 
 const AIKARS_FLAGS = '-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1'
 
 type Tab = 'mods' | 'members' | 'settings'
-
-function parseLaunchOpts(raw: string | undefined): LaunchOptions {
-  if (!raw) return { min_ram: '2G', max_ram: '4G', jvm_args: '', java_path: '' }
-  try {
-    const p = JSON.parse(raw)
-    return {
-      min_ram: p.min_ram || '2G',
-      max_ram: p.max_ram || '4G',
-      jvm_args: p.jvm_args || '',
-      java_path: p.java_path || ''
-    }
-  } catch {
-    return { min_ram: '2G', max_ram: '4G', jvm_args: '', java_path: '' }
-  }
-}
 
 export default function PackDetail() {
   const { id } = useParams<{ id: string }>()
@@ -55,6 +40,9 @@ export default function PackDetail() {
   const [editForm, setEditForm] = useState({ name: '', description: '', mc_version: '', loader: '', loader_version: '' })
   const [launchOpts, setLaunchOpts] = useState<LaunchOptions>({ min_ram: '2G', max_ram: '4G', jvm_args: '', java_path: '' })
   const [savedMsg, setSavedMsg] = useState('')
+  const [mcVersions, setMcVersions] = useState<string[]>(FALLBACK_MC_VERSIONS)
+  const [forgeVersions, setForgeVersions] = useState<string[]>([])
+  const [loadingForge, setLoadingForge] = useState(false)
   const logRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -62,18 +50,35 @@ export default function PackDetail() {
     window.api.getModpack(id).then((p: any) => {
       setPack(p)
       setEditForm({ name: p.name, description: p.description, mc_version: p.mc_version, loader: p.loader, loader_version: p.loader_version })
-      setLaunchOpts(parseLaunchOpts(p.launch_options))
     })
     window.api.getMembers(id).then(setMembers)
     window.api.getSession().then(setSession)
+    window.api.getLaunchOptions(id).then((opts: LaunchOptions | null) => {
+      if (opts) setLaunchOpts(opts)
+    })
     window.api.onLaunchProgress((msg: string) => setLog(l => [...l, msg]))
+    window.api.getMcVersions().then((vs: string[]) => {
+      if (vs && vs.length > 0) setMcVersions(vs)
+    })
   }, [id])
+
+  useEffect(() => {
+    if (!editForm.mc_version || editForm.loader !== 'forge') { setForgeVersions([]); return }
+    setLoadingForge(true)
+    window.api.getForgeVersions(editForm.mc_version).then((vs: string[]) => {
+      setForgeVersions(vs)
+      setLoadingForge(false)
+    })
+  }, [editForm.mc_version, editForm.loader])
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight
   }, [log])
 
   const isOwner = pack && session && pack.owner === session.minecraft_uuid
+  const myMembership = members.find(m => session && m.minecraft_uuid === session.minecraft_uuid)
+  const myRole = isOwner ? 'owner' : myMembership?.role || 'viewer'
+  const canEdit = myRole === 'owner' || myRole === 'editor'
 
   const handleLaunch = async () => {
     if (!id) return
@@ -102,11 +107,13 @@ export default function PackDetail() {
 
   const handleSaveSettings = async () => {
     if (!id) return
-    const updated: any = await window.api.updateModpack(id, {
-      ...editForm,
-      launch_options: JSON.stringify(launchOpts)
-    })
-    setPack(p => p ? { ...p, ...updated } : p)
+    // Save pack settings only if owner
+    if (isOwner) {
+      const updated: any = await window.api.updateModpack(id, editForm)
+      setPack(p => p ? { ...p, ...updated } : p)
+    }
+    // Always save local launch options (each user has their own)
+    await window.api.setLaunchOptions(id, launchOpts)
     setSavedMsg('Saved!')
     setTimeout(() => setSavedMsg(''), 2000)
   }
@@ -127,6 +134,12 @@ export default function PackDetail() {
     } catch (e: any) {
       setMemberError(e?.response?.data?.detail || 'Failed to add member')
     }
+  }
+
+  const handleChangeRole = async (uuid: string, role: string) => {
+    if (!id) return
+    const updated: any = await window.api.changeRole(id, uuid, role)
+    setMembers(mm => mm.map(m => m.minecraft_uuid === uuid ? { ...m, role: updated.role } : m))
   }
 
   const handleRemoveMember = async (uuid: string) => {
@@ -152,7 +165,10 @@ export default function PackDetail() {
       <div className="pack-header">
         <div>
           <h1>{pack.name}</h1>
-          <p className="pack-meta">{pack.mc_version} • {pack.loader} {pack.loader_version}</p>
+          <p className="pack-meta">
+            {pack.mc_version} • {pack.loader} {pack.loader_version || <span style={{ color:'#6b6b8a' }}>(latest)</span>}
+            <span className="badge" style={{ marginLeft:8 }}>{myRole}</span>
+          </p>
           {pack.description && <p style={{ color:'#8888aa', fontSize:13, marginTop:4, marginBottom:6 }}>{pack.description}</p>}
           <p className="pack-id">Pack ID: <strong>{pack.id}</strong></p>
         </div>
@@ -173,20 +189,17 @@ export default function PackDetail() {
       )}
 
       <div style={{ display:'flex', gap:2, borderBottom:'1px solid #22243d', marginBottom:16 }}>
-        {(['mods', 'members', 'settings'] as Tab[]).map(t => {
-          if ((t === 'settings' || t === 'members') && !isOwner) return null
-          return (
-            <button key={t} onClick={() => setTab(t)}
-              style={{
-                padding:'10px 20px', background:'none', border:'none',
-                borderBottom: tab === t ? '2px solid #4a7ce8' : '2px solid transparent',
-                color: tab === t ? '#fff' : '#8888aa',
-                cursor:'pointer', textTransform:'capitalize', fontSize:14, fontWeight:600
-              }}>
-              {t} {t === 'mods' && `(${pack.mods.length})`}{t === 'members' && `(${members.length})`}
-            </button>
-          )
-        })}
+        {(['mods', 'members', 'settings'] as Tab[]).map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            style={{
+              padding:'10px 20px', background:'none', border:'none',
+              borderBottom: tab === t ? '2px solid #4a7ce8' : '2px solid transparent',
+              color: tab === t ? '#fff' : '#8888aa',
+              cursor:'pointer', textTransform:'capitalize', fontSize:14, fontWeight:600
+            }}>
+            {t} {t === 'mods' && `(${pack.mods.length})`}{t === 'members' && `(${members.length + 1})`}
+          </button>
+        ))}
       </div>
 
       {/* MODS TAB */}
@@ -194,9 +207,11 @@ export default function PackDetail() {
         <div>
           <div style={{ display:'flex', gap:8, marginBottom:12 }}>
             <input className="input" style={{ flex:1 }} placeholder="Search mods..." value={modSearch} onChange={e => setModSearch(e.target.value)} />
-            <button onClick={handleUpload} disabled={uploading} className="btn btn-primary">
-              {uploading ? 'Uploading...' : '+ Upload'}
-            </button>
+            {canEdit && (
+              <button onClick={handleUpload} disabled={uploading} className="btn btn-primary">
+                {uploading ? 'Uploading...' : '+ Upload'}
+              </button>
+            )}
           </div>
 
           <div className="mod-list-container">
@@ -205,14 +220,16 @@ export default function PackDetail() {
                 <span className="mod-filename">{mod.filename}</span>
                 <div style={{ display:'flex', gap:12, alignItems:'center' }}>
                   <span style={{ color:'#6b6b8a', fontSize:11 }}>{(mod.size_bytes / 1024 / 1024).toFixed(1)} MB</span>
-                  <button className="icon-btn"
-                    onClick={() => id && window.api.removeMod(id, mod.id).then(() => setPack(p => p ? { ...p, mods: p.mods.filter(m => m.id !== mod.id) } : p))}>✕</button>
+                  {canEdit && (
+                    <button className="icon-btn"
+                      onClick={() => id && window.api.removeMod(id, mod.id).then(() => setPack(p => p ? { ...p, mods: p.mods.filter(m => m.id !== mod.id) } : p))}>✕</button>
+                  )}
                 </div>
               </div>
             ))}
             {filteredMods.length === 0 && (
               <div style={{ padding:24, textAlign:'center', color:'#6b6b8a', fontSize:13 }}>
-                {pack.mods.length === 0 ? 'No mods yet. Upload some JARs to get started.' : 'No mods match your search.'}
+                {pack.mods.length === 0 ? 'No mods yet.' : 'No mods match your search.'}
               </div>
             )}
           </div>
@@ -220,72 +237,113 @@ export default function PackDetail() {
       )}
 
       {/* MEMBERS TAB */}
-      {tab === 'members' && isOwner && (
+      {tab === 'members' && (
         <div>
-          <div style={{ display:'flex', gap:8, marginBottom:12 }}>
-            <input className="input" style={{ flex:1 }} placeholder="Minecraft username..." value={newMember} onChange={e => setNewMember(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddMember()} />
-            <button onClick={handleAddMember} className="btn btn-primary">Add Editor</button>
-          </div>
-          {memberError && <p style={{ color:'#f87171', fontSize:13, marginBottom:10 }}>{memberError}</p>}
-
-          {members.length === 0 && (
-            <div style={{ padding:24, textAlign:'center', color:'#6b6b8a', fontSize:13 }}>No editors yet.</div>
+          {isOwner && (
+            <>
+              <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+                <input className="input" style={{ flex:1 }} placeholder="Minecraft username..." value={newMember} onChange={e => setNewMember(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddMember()} />
+                <button onClick={handleAddMember} className="btn btn-primary">Add Editor</button>
+              </div>
+              {memberError && <p style={{ color:'#f87171', fontSize:13, marginBottom:10 }}>{memberError}</p>}
+            </>
           )}
+
+          {/* Owner row */}
+          <div className="member-row" style={{ borderColor:'#4a7ce8' }}>
+            <div>
+              <span style={{ fontWeight:600 }}>
+                {isOwner ? session?.minecraft_username : (members.find(m => m.minecraft_uuid === pack.owner)?.minecraft_username || 'Owner')}
+              </span>
+              <span className="badge" style={{ background:'#3b0764', color:'#c084fc' }}>owner</span>
+            </div>
+          </div>
+
+          {members.length === 0 && !isOwner && (
+            <div style={{ padding:24, textAlign:'center', color:'#6b6b8a', fontSize:13 }}>Just you and the owner.</div>
+          )}
+
           {members.map(mem => (
             <div key={mem.id} className="member-row">
               <div>
                 <span style={{ fontWeight:600 }}>{mem.minecraft_username}</span>
-                <span className="badge">editor</span>
+                <span className="badge">{mem.role}</span>
               </div>
-              <div style={{ display:'flex', gap:6 }}>
-                <button onClick={() => handleTransfer(mem.minecraft_uuid, mem.minecraft_username)} className="btn btn-warning" style={{ padding:'6px 12px', fontSize:12 }}>Transfer Ownership</button>
-                <button onClick={() => handleRemoveMember(mem.minecraft_uuid)} className="icon-btn">✕</button>
-              </div>
+              {isOwner && (
+                <div style={{ display:'flex', gap:6 }}>
+                  {mem.role === 'viewer' ? (
+                    <button onClick={() => handleChangeRole(mem.minecraft_uuid, 'editor')}
+                      className="btn btn-success" style={{ padding:'6px 12px', fontSize:12 }}>
+                      Promote to Editor
+                    </button>
+                  ) : (
+                    <>
+                      <button onClick={() => handleChangeRole(mem.minecraft_uuid, 'viewer')}
+                        className="btn btn-secondary" style={{ padding:'6px 12px', fontSize:12 }}>
+                        Demote to Viewer
+                      </button>
+                      <button onClick={() => handleTransfer(mem.minecraft_uuid, mem.minecraft_username)}
+                        className="btn btn-warning" style={{ padding:'6px 12px', fontSize:12 }}>
+                        Transfer Ownership
+                      </button>
+                    </>
+                  )}
+                  <button onClick={() => handleRemoveMember(mem.minecraft_uuid)} className="icon-btn">✕</button>
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
 
       {/* SETTINGS TAB */}
-      {tab === 'settings' && isOwner && (
+      {tab === 'settings' && (
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-
-          {/* Pack info */}
-          <div className="card">
-            <h3 style={{ fontSize:14, color:'#a5b4fc', marginBottom:14 }}>PACK INFO</h3>
-            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-              <div>
-                <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Pack Name</label>
-                <input className="input" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
-              </div>
-              <div>
-                <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Description</label>
-                <input className="input" value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} />
-              </div>
-              <div style={{ display:'flex', gap:10 }}>
-                <div style={{ flex:1 }}>
-                  <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>MC Version</label>
-                  <select className="select" value={editForm.mc_version} onChange={e => setEditForm(f => ({ ...f, mc_version: e.target.value }))}>
-                    {MC_VERSIONS.map(v => <option key={v}>{v}</option>)}
-                  </select>
+          {isOwner && (
+            <div className="card">
+              <h3 style={{ fontSize:14, color:'#a5b4fc', marginBottom:14 }}>PACK INFO <span style={{ color:'#6b6b8a', fontWeight:'normal', fontSize:12 }}>(shared with everyone)</span></h3>
+              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                <div>
+                  <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Pack Name</label>
+                  <input className="input" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
                 </div>
-                <div style={{ flex:1 }}>
-                  <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Loader</label>
-                  <select className="select" value={editForm.loader} onChange={e => setEditForm(f => ({ ...f, loader: e.target.value }))}>
-                    {LOADERS.map(l => <option key={l}>{l}</option>)}
-                  </select>
+                <div>
+                  <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Description</label>
+                  <input className="input" value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} />
                 </div>
-                <div style={{ flex:1 }}>
-                  <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Loader Version</label>
-                  <input className="input" value={editForm.loader_version} onChange={e => setEditForm(f => ({ ...f, loader_version: e.target.value }))} />
+                <div style={{ display:'flex', gap:10 }}>
+                  <div style={{ flex:1 }}>
+                    <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>MC Version</label>
+                    <select className="select" value={editForm.mc_version} onChange={e => setEditForm(f => ({ ...f, mc_version: e.target.value, loader_version: '' }))}>
+                      {mcVersions.map(v => <option key={v}>{v}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Loader</label>
+                    <select className="select" value={editForm.loader} onChange={e => setEditForm(f => ({ ...f, loader: e.target.value, loader_version: '' }))}>
+                      {LOADERS.map(l => <option key={l}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>
+                      Loader Version <span style={{ color:'#6b6b8a' }}>(blank = latest)</span>
+                    </label>
+                    {editForm.loader === 'forge' && forgeVersions.length > 0 ? (
+                      <select className="select" value={editForm.loader_version} onChange={e => setEditForm(f => ({ ...f, loader_version: e.target.value }))}>
+                        <option value="">Latest</option>
+                        {forgeVersions.map(v => <option key={v} value={v}>{v}</option>)}
+                      </select>
+                    ) : (
+                      <input className="input" value={editForm.loader_version} onChange={e => setEditForm(f => ({ ...f, loader_version: e.target.value }))} placeholder={loadingForge ? 'Loading...' : 'Leave blank for latest'} />
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Launch options */}
           <div className="card">
-            <h3 style={{ fontSize:14, color:'#a5b4fc', marginBottom:14 }}>LAUNCH OPTIONS</h3>
+            <h3 style={{ fontSize:14, color:'#a5b4fc', marginBottom:14 }}>LAUNCH OPTIONS <span style={{ color:'#6b6b8a', fontWeight:'normal', fontSize:12 }}>(saved to your computer only)</span></h3>
             <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
               <div style={{ display:'flex', gap:10 }}>
                 <div style={{ flex:1 }}>
@@ -303,31 +361,18 @@ export default function PackDetail() {
               </div>
               <div>
                 <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Custom JVM Args <span style={{ color:'#6b6b8a' }}>(advanced)</span></label>
-                <textarea
-                  value={launchOpts.jvm_args}
-                  onChange={e => setLaunchOpts(o => ({ ...o, jvm_args: e.target.value }))}
+                <textarea value={launchOpts.jvm_args} onChange={e => setLaunchOpts(o => ({ ...o, jvm_args: e.target.value }))}
                   placeholder="e.g. -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
-                  style={{
-                    width:'100%', minHeight:80, padding:'10px 14px', borderRadius:8,
-                    border:'1px solid #2a2a4a', background:'#0d0d1a', color:'#fff',
-                    fontSize:12, fontFamily:'Consolas, monospace', resize:'vertical'
-                  }}
-                />
-                <button
-                  onClick={() => setLaunchOpts(o => ({ ...o, jvm_args: AIKARS_FLAGS }))}
+                  style={{ width:'100%', minHeight:80, padding:'10px 14px', borderRadius:8, border:'1px solid #2a2a4a', background:'#0d0d1a', color:'#fff', fontSize:12, fontFamily:'Consolas, monospace', resize:'vertical' }} />
+                <button onClick={() => setLaunchOpts(o => ({ ...o, jvm_args: AIKARS_FLAGS }))}
                   style={{ marginTop:6, background:'none', border:'none', color:'#4a7ce8', cursor:'pointer', fontSize:12, padding:0 }}>
                   Use Aikar's Flags (recommended for large modpacks)
                 </button>
               </div>
               <div>
-                <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Custom Java Path <span style={{ color:'#6b6b8a' }}>(optional)</span></label>
-                <input
-                  className="input"
-                  value={launchOpts.java_path}
-                  onChange={e => setLaunchOpts(o => ({ ...o, java_path: e.target.value }))}
-                  placeholder="Leave blank to use system Java"
-                  style={{ fontFamily:'Consolas, monospace', fontSize:12 }}
-                />
+                <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Custom Java Path <span style={{ color:'#6b6b8a' }}>(auto-detected if blank)</span></label>
+                <input className="input" value={launchOpts.java_path} onChange={e => setLaunchOpts(o => ({ ...o, java_path: e.target.value }))}
+                  placeholder="e.g. C:\Program Files\Eclipse Adoptium\jdk-21..." style={{ fontFamily:'Consolas, monospace', fontSize:12 }} />
               </div>
             </div>
           </div>
@@ -337,11 +382,13 @@ export default function PackDetail() {
             {savedMsg && <span style={{ color:'#22c55e', fontSize:13 }}>{savedMsg}</span>}
           </div>
 
-          <div className="card" style={{ borderColor:'#7f1d1d' }}>
-            <h3 style={{ color:'#f87171', fontSize:14, marginBottom:8 }}>DANGER ZONE</h3>
-            <p style={{ color:'#8888aa', fontSize:13, marginBottom:12 }}>Deleting a pack permanently removes all mods and cannot be undone.</p>
-            <button onClick={handleDelete} className="btn btn-danger">Delete Pack</button>
-          </div>
+          {isOwner && (
+            <div className="card" style={{ borderColor:'#7f1d1d' }}>
+              <h3 style={{ color:'#f87171', fontSize:14, marginBottom:8 }}>DANGER ZONE</h3>
+              <p style={{ color:'#8888aa', fontSize:13, marginBottom:12 }}>Deleting a pack permanently removes all mods and cannot be undone.</p>
+              <button onClick={handleDelete} className="btn btn-danger">Delete Pack</button>
+            </div>
+          )}
         </div>
       )}
     </div>
