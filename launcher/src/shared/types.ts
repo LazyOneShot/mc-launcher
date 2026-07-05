@@ -3,7 +3,7 @@ export interface ModpackMeta {
   name: string
   description: string
   mc_version: string
-  loader: 'forge' | 'neoforge' | 'fabric' | 'quilt'
+  loader: 'forge' | 'neoforge' | 'fabric'
   loader_version: string
   owner: string
   created_at: string
@@ -24,8 +24,10 @@ export interface ModpackFull extends ModpackMeta {
 }
 
 export interface AuthTokens {
-  access_token: string
-  mc_access_token: string
+  access_token: string          // our backend JWT
+  mc_access_token: string       // Minecraft access token for online play
+  mc_expires_at: number         // unix ms when mc_access_token expires
   minecraft_username: string
   minecraft_uuid: string
+  ms_home_account_id?: string   // MSAL account ID for silent refresh
 }

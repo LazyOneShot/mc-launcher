@@ -12,19 +12,47 @@ contextBridge.exposeInMainWorld('api', {
   getModpack:         (id: string)                          => ipcRenderer.invoke('modpacks:get', id),
   listMyModpacks:     ()                                    => ipcRenderer.invoke('modpacks:listMine'),
   createModpack:      (meta: object)                        => ipcRenderer.invoke('modpacks:create', meta),
+  joinModpack:        (id: string)                          => ipcRenderer.invoke('modpacks:join', id),
   updateModpack:      (id: string, data: object)            => ipcRenderer.invoke('modpacks:update', id, data),
   deleteModpack:      (id: string)                          => ipcRenderer.invoke('modpacks:delete', id),
   uploadMod:          (packId: string, fp: string)          => ipcRenderer.invoke('modpacks:uploadMod', packId, fp),
   removeMod:          (packId: string, modId: string)       => ipcRenderer.invoke('modpacks:removeMod', packId, modId),
   pickModFile:        ()                                    => ipcRenderer.invoke('modpacks:pickModFile'),
 
+  // Local launch options (per-user)
+  getLaunchOptions:   (packId: string)                      => ipcRenderer.invoke('launchOpts:get', packId),
+  setLaunchOptions:   (packId: string, opts: any)           => ipcRenderer.invoke('launchOpts:set', packId, opts),
+
   // Members
   getMembers:         (packId: string)                      => ipcRenderer.invoke('members:get', packId),
   addMember:          (packId: string, username: string)    => ipcRenderer.invoke('members:add', packId, username),
+  changeRole:         (packId: string, uuid: string, role: string) => ipcRenderer.invoke('members:changeRole', packId, uuid, role),
   removeMember:       (packId: string, uuid: string)        => ipcRenderer.invoke('members:remove', packId, uuid),
   transferOwnership:  (packId: string, uuid: string)        => ipcRenderer.invoke('members:transfer', packId, uuid),
 
+  // Versions
+  getMcVersions:      ()                                    => ipcRenderer.invoke('versions:mc'),
+  getForgeVersions:   (mc: string)                          => ipcRenderer.invoke('versions:forge', mc),
+  getLatestForge:     (mc: string)                          => ipcRenderer.invoke('versions:forge:latest', mc),
+
   // Launch
   syncAndLaunch:      (packId: string)                      => ipcRenderer.invoke('launch:syncAndLaunch', packId),
-  onLaunchProgress:   (cb: (msg: string) => void)           => ipcRenderer.on('launch:progress', (_e, msg) => cb(msg))
+  onLaunchProgress:   (cb: (msg: string) => void)           => ipcRenderer.on('launch:progress', (_e, msg) => cb(msg)),
+
+  // Updater
+  checkForUpdate:     ()                                    => ipcRenderer.invoke('update:check'),
+  downloadUpdate:     ()                                    => ipcRenderer.invoke('update:download'),
+  installUpdate:      ()                                    => ipcRenderer.invoke('update:install'),
+  currentVersion:     ()                                    => ipcRenderer.invoke('update:currentVersion'),
+  onUpdateAvailable:  (cb: (d: any) => void)                => ipcRenderer.on('update:available', (_e, d) => cb(d)),
+  onUpdateProgress:   (cb: (d: any) => void)                => ipcRenderer.on('update:progress', (_e, d) => cb(d)),
+  onUpdateDownloaded: (cb: (d: any) => void)                => ipcRenderer.on('update:downloaded', (_e, d) => cb(d)),
+  onUpdateError:      (cb: (d: any) => void)                => ipcRenderer.on('update:error', (_e, d) => cb(d)),
+  onUpdateNone:       (cb: () => void)                      => ipcRenderer.on('update:none', () => cb()),
+
+  // Window controls
+  minimizeWindow:     ()                                    => ipcRenderer.invoke('window:minimize'),
+  maximizeWindow:     ()                                    => ipcRenderer.invoke('window:maximize'),
+  closeWindow:        ()                                    => ipcRenderer.invoke('window:close'),
+  isMaximized:        ()                                    => ipcRenderer.invoke('window:isMaximized')
 })
