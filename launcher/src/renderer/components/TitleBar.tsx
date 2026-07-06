@@ -2,10 +2,17 @@ import React, { useEffect, useState } from 'react'
 
 export default function TitleBar() {
   const [isMax, setIsMax] = useState(false)
+  const [enabled, setEnabled] = useState<boolean | null>(null)
 
   useEffect(() => {
+    window.api.useCustomTitleBar().then(setEnabled)
     window.api.isMaximized().then(setIsMax)
   }, [])
+
+  // Don't render anything until we know whether to (avoids flash)
+  if (enabled === null) return null
+  // On Mac/Linux, native chrome handles this — render nothing
+  if (!enabled) return null
 
   const handleMinimize = () => window.api.minimizeWindow()
   const handleMaximize = async () => {

@@ -6,12 +6,23 @@ import { authHandlers } from './ipc/auth'
 import { modpackHandlers } from './ipc/modpacks'
 import { launchHandlers } from './ipc/launch'
 import { memberHandlers } from './ipc/members'
-import { versionHandlers } from './ipc/versions'
 import { updateHandlers } from './ipc/updater'
+import { versionHandlers } from './ipc/versions'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let isQuitting = false
+
+// Custom title bar only on Windows — Mac and Linux use native window controls
+const USE_CUSTOM_TITLEBAR = process.platform === 'win32'
+
+function getIconPath(name: 'png' | 'ico' = 'png'): string {
+  const isDev = !app.isPackaged
+  const filename = `icon.${name}`
+  return isDev
+    ? join(__dirname, '../../build', filename)
+    : join(process.resourcesPath, filename)
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -19,10 +30,10 @@ function createWindow() {
     height: 680,
     minWidth: 900,
     minHeight: 600,
-    frame: false,             // hide native frame so we can draw our own
-    titleBarStyle: 'hidden',
+    frame: !USE_CUSTOM_TITLEBAR,
+    titleBarStyle: USE_CUSTOM_TITLEBAR ? 'hidden' : 'default',
     backgroundColor: '#0f1020',
-    icon: join(__dirname, '../../build/icon.png'),
+    icon: getIconPath('png'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -42,7 +53,6 @@ function createWindow() {
     return { action: 'deny' }
   })
 
-  // Close button hides to tray instead of quitting
   mainWindow.on('close', (event) => {
     if (!isQuitting) {
       event.preventDefault()
@@ -54,16 +64,12 @@ function createWindow() {
 }
 
 function createTray() {
-  const isDev = !app.isPackaged
-  const iconPath = isDev
-    ? join(__dirname, '../../build/icon.png')
-    : join(process.resourcesPath, 'icon.png')
-
+  const iconPath = getIconPath('png')
   let trayIcon
   try {
     trayIcon = nativeImage.createFromPath(iconPath)
     if (trayIcon.isEmpty()) {
-      console.error('[tray] Icon loaded but is empty:', iconPath)
+      console.error('[tray] Icon loaded but empty:', iconPath)
     } else {
       trayIcon = trayIcon.resize({ width: 16, height: 16 })
     }
@@ -76,21 +82,14 @@ function createTray() {
   tray.setToolTip('MC Launcher')
 
   const contextMenu = Menu.buildFromTemplate([
-    {
-      label: 'Open MC Launcher',
-      click: () => { mainWindow?.show(); mainWindow?.focus() }
-    },
+    { label: 'Open MC Launcher', click: () => { mainWindow?.show(); mainWindow?.focus() } },
     { type: 'separator' },
-    {
-      label: 'Quit',
-      click: () => { isQuitting = true; app.quit() }
-    }
+    { label: 'Quit', click: () => { isQuitting = true; app.quit() } }
   ])
   tray.setContextMenu(contextMenu)
   tray.on('double-click', () => { mainWindow?.show(); mainWindow?.focus() })
 }
 
-// Window control IPC — used by the custom title bar in the renderer
 function windowControlHandlers() {
   ipcMain.handle('window:minimize', () => mainWindow?.minimize())
   ipcMain.handle('window:maximize', () => {
@@ -99,9 +98,10 @@ function windowControlHandlers() {
   })
   ipcMain.handle('window:close', () => mainWindow?.close())
   ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() ?? false)
+  // Expose so renderer knows whether to render custom titlebar
+  ipcMain.handle('window:useCustomTitleBar', () => USE_CUSTOM_TITLEBAR)
 }
 
-// Ensure only one instance can run — clicking the exe again just focuses existing window
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
   app.quit()
@@ -121,8 +121,8 @@ if (!gotLock) {
     modpackHandlers()
     launchHandlers()
     memberHandlers()
-    versionHandlers()
     updateHandlers()
+    versionHandlers()
     windowControlHandlers()
 
     if (app.isPackaged) {
@@ -136,7 +136,5 @@ if (!gotLock) {
 app.on('before-quit', () => { isQuitting = true })
 
 app.on('window-all-closed', () => {
-  // Don't quit on window close — tray keeps app alive
-  // Only quit on non-macOS if user explicitly quits
   if (process.platform !== 'darwin' && isQuitting) app.quit()
 })

@@ -19,7 +19,7 @@ contextBridge.exposeInMainWorld('api', {
   removeMod:          (packId: string, modId: string)       => ipcRenderer.invoke('modpacks:removeMod', packId, modId),
   pickModFile:        ()                                    => ipcRenderer.invoke('modpacks:pickModFile'),
 
-  // Local launch options (per-user)
+  // Local launch options
   getLaunchOptions:   (packId: string)                      => ipcRenderer.invoke('launchOpts:get', packId),
   setLaunchOptions:   (packId: string, opts: any)           => ipcRenderer.invoke('launchOpts:set', packId, opts),
 
@@ -54,5 +54,6 @@ contextBridge.exposeInMainWorld('api', {
   minimizeWindow:     ()                                    => ipcRenderer.invoke('window:minimize'),
   maximizeWindow:     ()                                    => ipcRenderer.invoke('window:maximize'),
   closeWindow:        ()                                    => ipcRenderer.invoke('window:close'),
-  isMaximized:        ()                                    => ipcRenderer.invoke('window:isMaximized')
+  isMaximized:        ()                                    => ipcRenderer.invoke('window:isMaximized'),
+  useCustomTitleBar:  ()                                    => ipcRenderer.invoke('window:useCustomTitleBar')
 })
