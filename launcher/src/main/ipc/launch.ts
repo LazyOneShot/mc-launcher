@@ -1,10 +1,9 @@
-import { ipcMain, BrowserWindow } from 'electron'
+import { ipcMain, BrowserWindow, app } from 'electron'
 import axios from 'axios'
 import Store from 'electron-store'
 import * as fs from 'fs-extra'
 import * as path from 'path'
 import * as crypto from 'crypto'
-import * as os from 'os'
 import { Client } from 'minecraft-launcher-core'
 import { getValidTokens } from './auth'
 import { pickBestJava, requiredJavaForMc } from './java-detect'
@@ -13,9 +12,14 @@ import type { Mod, ModpackFull } from '../../shared/types'
 const API = process.env.API_URL || 'https://mc-api.daboismc.win'
 const localOpts = new Store<{ launchOptions?: Record<string, any> }>({ name: 'launch-options' })
 
+/**
+ * Cross-platform per-pack data directory:
+ * Windows: %APPDATA%\.mc-launcher\packs\<packId>
+ * macOS:   ~/Library/Application Support/mc-launcher/packs/<packId>
+ * Linux:   ~/.config/mc-launcher/packs/<packId>
+ */
 function packDir(packId: string) {
-  const base = process.env.APPDATA || path.join(os.homedir(), '.mc-launcher')
-  return path.join(base, '.mc-launcher', 'packs', packId)
+  return path.join(app.getPath('userData'), 'packs', packId)
 }
 
 function sha256File(filePath: string): Promise<string> {
@@ -42,6 +46,14 @@ function getLocalLaunchOptions(packId: string): LaunchOptions {
     jvm_args: p.jvm_args || '',
     java_path: p.java_path || ''
   }
+}
+
+/**
+ * Get the default Java executable name for the current platform.
+ * Windows uses javaw (windowless), Mac/Linux use java.
+ */
+function defaultJavaExe(): string {
+  return process.platform === 'win32' ? 'javaw' : 'java'
 }
 
 export function launchHandlers() {
@@ -84,7 +96,6 @@ export function launchHandlers() {
     }
     if (downloaded > 0) progress(win, `Downloaded ${downloaded} mods`)
 
-    // Load LOCAL launch options (per-user, not from server)
     const launchOpts = getLocalLaunchOptions(packId)
 
     let loaderVersion = pack.loader_version?.trim() || ''
@@ -107,14 +118,14 @@ export function launchHandlers() {
       const best = await pickBestJava(pack.mc_version)
       if (best) {
         if (best.majorVersion < required) {
-          progress(win, `WARNING: Only found Java ${best.majorVersion}, but MC ${pack.mc_version} needs Java ${required}+. Install Java ${required} and try again.`)
+          progress(win, `WARNING: Only found Java ${best.majorVersion}, but MC ${pack.mc_version} needs Java ${required}+.`)
         } else {
           progress(win, `Using Java ${best.majorVersion}: ${best.path}`)
         }
         javaPath = best.path
-      } else if (process.platform === 'win32') {
-        progress(win, `No Java installs detected. Falling back to system javaw.`)
-        javaPath = 'javaw'
+      } else {
+        progress(win, `No Java installs detected. Falling back to system ${defaultJavaExe()}.`)
+        javaPath = defaultJavaExe()
       }
     }
 
