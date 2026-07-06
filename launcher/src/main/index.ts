@@ -6,6 +6,7 @@ import { authHandlers } from './ipc/auth'
 import { modpackHandlers } from './ipc/modpacks'
 import { launchHandlers } from './ipc/launch'
 import { memberHandlers } from './ipc/members'
+import { versionHandlers } from './ipc/versions'
 import { updateHandlers } from './ipc/updater'
 
 let mainWindow: BrowserWindow | null = null
@@ -120,6 +121,7 @@ if (!gotLock) {
     modpackHandlers()
     launchHandlers()
     memberHandlers()
+    versionHandlers()
     updateHandlers()
     windowControlHandlers()
 
