@@ -5,6 +5,7 @@ import { authHandlers } from './ipc/auth'
 import { modpackHandlers } from './ipc/modpacks'
 import { launchHandlers } from './ipc/launch'
 import { memberHandlers } from './ipc/members'
+import { serverHandlers } from './ipc/servers'
 import { updateHandlers } from './ipc/updater'
 import { versionHandlers } from './ipc/versions'
 
@@ -118,11 +119,10 @@ if (!gotLock) {
     modpackHandlers()
     launchHandlers()
     memberHandlers()
+    serverHandlers()
     updateHandlers()
     versionHandlers()
     windowControlHandlers()
-    // NOTE: The renderer's StartupUpdate page now handles the initial update check.
-    // Periodic checks are started after the splash screen completes.
   })
 }
 
