@@ -50,6 +50,36 @@ class TransferOwnershipRequest(SQLModel):
     minecraft_uuid: str
 
 
+class ModpackServer(SQLModel, table=True):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    pack_id: str = Field(foreign_key="modpack.id")
+    name: str
+    host: str
+    port: int = 25565
+    sort_order: int = 0
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    modpack: Optional["Modpack"] = Relationship(back_populates="servers")
+
+class ModpackServerRead(SQLModel):
+    id: str
+    pack_id: str
+    name: str
+    host: str
+    port: int
+    sort_order: int
+
+class ServerCreate(SQLModel):
+    name: str
+    host: str
+    port: int = 25565
+
+class ServerUpdate(SQLModel):
+    name: Optional[str] = None
+    host: Optional[str] = None
+    port: Optional[int] = None
+    sort_order: Optional[int] = None
+
+
 class Modpack(SQLModel, table=True):
     id: str = Field(primary_key=True)
     name: str
@@ -58,12 +88,11 @@ class Modpack(SQLModel, table=True):
     loader: str
     loader_version: str
     owner: str
-    default_server_ip: str = ""
-    default_server_port: int = 25565
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     mods: List[Mod] = Relationship(back_populates="modpack")
     members: List[ModpackMember] = Relationship(back_populates="modpack")
+    servers: List[ModpackServer] = Relationship(back_populates="modpack")
 
 class ModpackCreate(SQLModel):
     id: str
@@ -79,8 +108,6 @@ class ModpackUpdate(SQLModel):
     mc_version: Optional[str] = None
     loader: Optional[str] = None
     loader_version: Optional[str] = None
-    default_server_ip: Optional[str] = None
-    default_server_port: Optional[int] = None
 
 class ModpackRead(SQLModel):
     id: str
@@ -90,9 +117,8 @@ class ModpackRead(SQLModel):
     loader: str
     loader_version: str
     owner: str
-    default_server_ip: str = ""
-    default_server_port: int = 25565
     created_at: datetime
     updated_at: datetime
     mods: List[ModRead] = []
     members: List[ModpackMemberRead] = []
+    servers: List[ModpackServerRead] = []

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import type { ModpackFull } from '../../shared/types'
+import type { ModpackFull, ModpackServer } from '../../shared/types'
 
 interface Member {
   id: string
@@ -10,34 +10,27 @@ interface Member {
 }
 
 interface LaunchOptions {
-  min_ram: string
-  max_ram: string
-  jvm_args: string
-  java_path: string
+  min_ram: string; max_ram: string; jvm_args: string; java_path: string
 }
 
 interface BulkProgress {
-  current: number
-  total: number
-  filename: string
-  succeeded: number
-  failed: number
-  status: 'uploading' | 'done'
+  current: number; total: number; filename: string
+  succeeded: number; failed: number; status: 'uploading' | 'done'
 }
 
 const LOADERS = ['neoforge', 'forge', 'fabric']
 const RAM_OPTIONS = ['1G', '2G', '3G', '4G', '6G', '8G', '12G', '16G']
 const FALLBACK_MC_VERSIONS = ['1.21.1', '1.20.4', '1.20.1', '1.19.4', '1.18.2']
-
 const AIKARS_FLAGS = '-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1'
 
-type Tab = 'mods' | 'members' | 'settings'
+type Tab = 'mods' | 'members' | 'servers' | 'settings'
 
 export default function PackDetail() {
   const { id } = useParams<{ id: string }>()
   const nav = useNavigate()
   const [pack, setPack] = useState<ModpackFull | null>(null)
   const [members, setMembers] = useState<Member[]>([])
+  const [servers, setServers] = useState<ModpackServer[]>([])
   const [log, setLog] = useState<string[]>([])
   const [launching, setLaunching] = useState(false)
   const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null)
@@ -46,41 +39,29 @@ export default function PackDetail() {
   const [session, setSession] = useState<any>(null)
   const [tab, setTab] = useState<Tab>('mods')
   const [modSearch, setModSearch] = useState('')
-  const [editForm, setEditForm] = useState({
-    name: '', description: '', mc_version: '', loader: '', loader_version: '',
-    default_server_ip: '', default_server_port: 25565
-  })
+  const [editForm, setEditForm] = useState({ name: '', description: '', mc_version: '', loader: '', loader_version: '' })
   const [launchOpts, setLaunchOpts] = useState<LaunchOptions>({ min_ram: '2G', max_ram: '4G', jvm_args: '', java_path: '' })
   const [savedMsg, setSavedMsg] = useState('')
   const [mcVersions, setMcVersions] = useState<string[]>(FALLBACK_MC_VERSIONS)
   const [forgeVersions, setForgeVersions] = useState<string[]>([])
   const [loadingForge, setLoadingForge] = useState(false)
+  const [newServer, setNewServer] = useState({ name: '', host: '', port: 25565 })
+  const [serverError, setServerError] = useState('')
   const logRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!id) return
     window.api.getModpack(id).then((p: any) => {
       setPack(p)
-      setEditForm({
-        name: p.name,
-        description: p.description,
-        mc_version: p.mc_version,
-        loader: p.loader,
-        loader_version: p.loader_version,
-        default_server_ip: p.default_server_ip || '',
-        default_server_port: p.default_server_port || 25565
-      })
+      setEditForm({ name: p.name, description: p.description, mc_version: p.mc_version, loader: p.loader, loader_version: p.loader_version })
     })
     window.api.getMembers(id).then(setMembers)
+    window.api.listServers(id).then(setServers)
     window.api.getSession().then(setSession)
-    window.api.getLaunchOptions(id).then((opts: LaunchOptions | null) => {
-      if (opts) setLaunchOpts(opts)
-    })
+    window.api.getLaunchOptions(id).then((opts: LaunchOptions | null) => { if (opts) setLaunchOpts(opts) })
     window.api.onLaunchProgress((msg: string) => setLog(l => [...l, msg]))
     window.api.onBulkUploadProgress((p: BulkProgress) => setBulkProgress(p))
-    window.api.getMcVersions().then((vs: string[]) => {
-      if (vs && vs.length > 0) setMcVersions(vs)
-    })
+    window.api.getMcVersions().then((vs: string[]) => { if (vs?.length > 0) setMcVersions(vs) })
   }, [id])
 
   useEffect(() => {
@@ -100,11 +81,12 @@ export default function PackDetail() {
   const myRole = isOwner ? 'owner' : myMembership?.role || 'viewer'
   const canEdit = myRole === 'owner' || myRole === 'editor'
 
-  const handleLaunch = async (connectToServer = false) => {
+  const handleLaunch = async (server?: ModpackServer) => {
     if (!id) return
     setLaunching(true); setLog([])
     try {
-      await window.api.syncAndLaunch(id, { connectToServer })
+      const extras = server ? { serverHost: server.host, serverPort: server.port } : {}
+      await window.api.syncAndLaunch(id, extras)
     } catch (e: any) {
       setLog(l => [...l, `Error: ${e.message || e}`])
     }
@@ -115,19 +97,11 @@ export default function PackDetail() {
     if (!id) return
     const filePaths: string[] = await window.api.pickModFile()
     if (filePaths.length === 0) return
-
-    // Single or bulk both go through the bulk endpoint so we get consistent progress
     setBulkProgress({ current: 0, total: filePaths.length, filename: '', succeeded: 0, failed: 0, status: 'uploading' })
     const result = await window.api.uploadModsBulk(id, filePaths)
-
-    // Refresh pack from server to get final state (all successful mods appended)
     const fresh: any = await window.api.getModpack(id)
     setPack(fresh)
-
-    // Auto-clear progress after 3 seconds unless there were failures
-    if (result.failed === 0) {
-      setTimeout(() => setBulkProgress(null), 3000)
-    }
+    if (result.failed === 0) setTimeout(() => setBulkProgress(null), 3000)
   }
 
   const handleSaveSettings = async () => {
@@ -145,6 +119,28 @@ export default function PackDetail() {
     if (!id || !confirm(`Delete "${pack?.name}"? This permanently removes all mods.`)) return
     await window.api.deleteModpack(id)
     nav('/home')
+  }
+
+  const handleAddServer = async () => {
+    if (!id || !newServer.name.trim() || !newServer.host.trim()) return
+    setServerError('')
+    try {
+      const s = await window.api.addServer(id, {
+        name: newServer.name.trim(),
+        host: newServer.host.trim(),
+        port: newServer.port || 25565
+      })
+      setServers(ss => [...ss, s])
+      setNewServer({ name: '', host: '', port: 25565 })
+    } catch (e: any) {
+      setServerError(e?.response?.data?.detail || 'Failed to add server')
+    }
+  }
+
+  const handleDeleteServer = async (serverId: string) => {
+    if (!id) return
+    await window.api.deleteServer(id, serverId)
+    setServers(ss => ss.filter(s => s.id !== serverId))
   }
 
   const handleAddMember = async () => {
@@ -180,7 +176,6 @@ export default function PackDetail() {
   if (!pack) return <div className="page">Loading...</div>
 
   const filteredMods = pack.mods.filter(m => m.filename.toLowerCase().includes(modSearch.toLowerCase()))
-  const hasDefaultServer = !!pack.default_server_ip?.trim()
 
   return (
     <div className="page">
@@ -195,24 +190,19 @@ export default function PackDetail() {
           </p>
           {pack.description && <p style={{ color:'#8888aa', fontSize:13, marginTop:4, marginBottom:6 }}>{pack.description}</p>}
           <p className="pack-id">Pack ID: <strong>{pack.id}</strong></p>
-          {hasDefaultServer && (
-            <p style={{ color:'#6b6b8a', fontSize:12, marginTop:4 }}>
-              Server: <span style={{ color:'#a5b4fc', fontFamily:'Consolas, monospace' }}>{pack.default_server_ip}:{pack.default_server_port}</span>
-            </p>
-          )}
         </div>
       </div>
 
-      <div className="action-bar">
-        <button onClick={() => handleLaunch(false)} disabled={launching} className="btn btn-play">
+      <div className="action-bar" style={{ flexWrap:'wrap' }}>
+        <button onClick={() => handleLaunch()} disabled={launching} className="btn btn-play">
           {launching ? 'Syncing & Launching...' : '▶  Play'}
         </button>
-        {hasDefaultServer && (
-          <button onClick={() => handleLaunch(true)} disabled={launching} className="btn btn-play"
+        {servers.map(s => (
+          <button key={s.id} onClick={() => handleLaunch(s)} disabled={launching} className="btn btn-play"
             style={{ background: 'linear-gradient(135deg, #4a7ce8 0%, #6366f1 100%)' }}>
-            {launching ? '...' : `▶  Play on ${pack.default_server_ip}`}
+            {launching ? '...' : `▶  ${s.name}`}
           </button>
-        )}
+        ))}
       </div>
 
       {log.length > 0 && (
@@ -224,7 +214,7 @@ export default function PackDetail() {
       )}
 
       <div style={{ display:'flex', gap:2, borderBottom:'1px solid #22243d', marginBottom:16 }}>
-        {(['mods', 'members', 'settings'] as Tab[]).map(t => (
+        {(['mods', 'servers', 'members', 'settings'] as Tab[]).map(t => (
           <button key={t} onClick={() => setTab(t)}
             style={{
               padding:'10px 20px', background:'none', border:'none',
@@ -232,11 +222,14 @@ export default function PackDetail() {
               color: tab === t ? '#fff' : '#8888aa',
               cursor:'pointer', textTransform:'capitalize', fontSize:14, fontWeight:600
             }}>
-            {t} {t === 'mods' && `(${pack.mods.length})`}{t === 'members' && `(${members.length + 1})`}
+            {t} {t === 'mods' && `(${pack.mods.length})`}
+            {t === 'servers' && `(${servers.length})`}
+            {t === 'members' && `(${members.length + 1})`}
           </button>
         ))}
       </div>
 
+      {/* MODS TAB */}
       {tab === 'mods' && (
         <div>
           <div style={{ display:'flex', gap:8, marginBottom:12 }}>
@@ -257,9 +250,7 @@ export default function PackDetail() {
                     : `${bulkProgress.current} of ${bulkProgress.total} — ${bulkProgress.filename}`
                   }
                 </span>
-                <span style={{ color:'#6b6b8a' }}>
-                  {Math.round((bulkProgress.current / Math.max(1, bulkProgress.total)) * 100)}%
-                </span>
+                <span style={{ color:'#6b6b8a' }}>{Math.round((bulkProgress.current / Math.max(1, bulkProgress.total)) * 100)}%</span>
               </div>
               <div style={{ width:'100%', height:6, background:'#22243d', borderRadius:3, overflow:'hidden' }}>
                 <div style={{
@@ -296,6 +287,59 @@ export default function PackDetail() {
         </div>
       )}
 
+      {/* SERVERS TAB */}
+      {tab === 'servers' && (
+        <div>
+          {isOwner && (
+            <div className="card" style={{ marginBottom:16 }}>
+              <h3 style={{ fontSize:14, color:'#a5b4fc', marginBottom:12 }}>ADD SERVER</h3>
+              <div style={{ display:'flex', gap:8, alignItems:'flex-end' }}>
+                <div style={{ flex:2 }}>
+                  <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Server Name</label>
+                  <input className="input" value={newServer.name}
+                    onChange={e => setNewServer(s => ({ ...s, name: e.target.value }))}
+                    placeholder="e.g. Main SMP" />
+                </div>
+                <div style={{ flex:3 }}>
+                  <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Host</label>
+                  <input className="input" value={newServer.host}
+                    onChange={e => setNewServer(s => ({ ...s, host: e.target.value }))}
+                    placeholder="mc.example.com" />
+                </div>
+                <div style={{ flex:1 }}>
+                  <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Port</label>
+                  <input className="input" type="number" value={newServer.port}
+                    onChange={e => setNewServer(s => ({ ...s, port: parseInt(e.target.value) || 25565 }))} />
+                </div>
+                <button onClick={handleAddServer} className="btn btn-primary">Add</button>
+              </div>
+              {serverError && <p style={{ color:'#f87171', fontSize:13, marginTop:8 }}>{serverError}</p>}
+            </div>
+          )}
+
+          {servers.length === 0 && (
+            <div style={{ padding:24, textAlign:'center', color:'#6b6b8a', fontSize:13, background:'#0d0e1e', border:'1px solid #22243d', borderRadius:8 }}>
+              No servers added yet.{isOwner ? ' Add one above to enable one-click join buttons.' : ''}
+            </div>
+          )}
+
+          {servers.map(s => (
+            <div key={s.id} className="member-row">
+              <div>
+                <span style={{ fontWeight:600 }}>{s.name}</span>
+                <span style={{ color:'#8888aa', fontSize:12, marginLeft:8, fontFamily:'Consolas, monospace' }}>
+                  {s.host}:{s.port}
+                </span>
+              </div>
+              {isOwner && (
+                <button onClick={() => handleDeleteServer(s.id)} className="icon-btn">✕</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* MEMBERS TAB */}
       {tab === 'members' && (
         <div>
           {isOwner && (
@@ -331,19 +375,13 @@ export default function PackDetail() {
                 <div style={{ display:'flex', gap:6 }}>
                   {mem.role === 'viewer' ? (
                     <button onClick={() => handleChangeRole(mem.minecraft_uuid, 'editor')}
-                      className="btn btn-success" style={{ padding:'6px 12px', fontSize:12 }}>
-                      Promote to Editor
-                    </button>
+                      className="btn btn-success" style={{ padding:'6px 12px', fontSize:12 }}>Promote to Editor</button>
                   ) : (
                     <>
                       <button onClick={() => handleChangeRole(mem.minecraft_uuid, 'viewer')}
-                        className="btn btn-secondary" style={{ padding:'6px 12px', fontSize:12 }}>
-                        Demote to Viewer
-                      </button>
+                        className="btn btn-secondary" style={{ padding:'6px 12px', fontSize:12 }}>Demote to Viewer</button>
                       <button onClick={() => handleTransfer(mem.minecraft_uuid, mem.minecraft_username)}
-                        className="btn btn-warning" style={{ padding:'6px 12px', fontSize:12 }}>
-                        Transfer Ownership
-                      </button>
+                        className="btn btn-warning" style={{ padding:'6px 12px', fontSize:12 }}>Transfer Ownership</button>
                     </>
                   )}
                   <button onClick={() => handleRemoveMember(mem.minecraft_uuid)} className="icon-btn">✕</button>
@@ -354,72 +392,50 @@ export default function PackDetail() {
         </div>
       )}
 
+      {/* SETTINGS TAB */}
       {tab === 'settings' && (
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           {isOwner && (
-            <>
-              <div className="card">
-                <h3 style={{ fontSize:14, color:'#a5b4fc', marginBottom:14 }}>PACK INFO <span style={{ color:'#6b6b8a', fontWeight:'normal', fontSize:12 }}>(shared)</span></h3>
-                <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-                  <div>
-                    <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Pack Name</label>
-                    <input className="input" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
-                  </div>
-                  <div>
-                    <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Description</label>
-                    <input className="input" value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} />
-                  </div>
-                  <div style={{ display:'flex', gap:10 }}>
-                    <div style={{ flex:1 }}>
-                      <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>MC Version</label>
-                      <select className="select" value={editForm.mc_version} onChange={e => setEditForm(f => ({ ...f, mc_version: e.target.value, loader_version: '' }))}>
-                        {mcVersions.map(v => <option key={v}>{v}</option>)}
-                      </select>
-                    </div>
-                    <div style={{ flex:1 }}>
-                      <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Loader</label>
-                      <select className="select" value={editForm.loader} onChange={e => setEditForm(f => ({ ...f, loader: e.target.value, loader_version: '' }))}>
-                        {LOADERS.map(l => <option key={l}>{l}</option>)}
-                      </select>
-                    </div>
-                    <div style={{ flex:1 }}>
-                      <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>
-                        Loader Version <span style={{ color:'#6b6b8a' }}>(blank = latest)</span>
-                      </label>
-                      {editForm.loader === 'forge' && forgeVersions.length > 0 ? (
-                        <select className="select" value={editForm.loader_version} onChange={e => setEditForm(f => ({ ...f, loader_version: e.target.value }))}>
-                          <option value="">Latest</option>
-                          {forgeVersions.map(v => <option key={v} value={v}>{v}</option>)}
-                        </select>
-                      ) : (
-                        <input className="input" value={editForm.loader_version} onChange={e => setEditForm(f => ({ ...f, loader_version: e.target.value }))} placeholder={loadingForge ? 'Loading...' : 'Leave blank for latest'} />
-                      )}
-                    </div>
-                  </div>
+            <div className="card">
+              <h3 style={{ fontSize:14, color:'#a5b4fc', marginBottom:14 }}>PACK INFO <span style={{ color:'#6b6b8a', fontWeight:'normal', fontSize:12 }}>(shared)</span></h3>
+              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                <div>
+                  <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Pack Name</label>
+                  <input className="input" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
                 </div>
-              </div>
-
-              <div className="card">
-                <h3 style={{ fontSize:14, color:'#a5b4fc', marginBottom:14 }}>DEFAULT SERVER <span style={{ color:'#6b6b8a', fontWeight:'normal', fontSize:12 }}>(optional, shared)</span></h3>
-                <p style={{ color:'#8888aa', fontSize:12, marginBottom:12 }}>
-                  Set this to enable one-click join via the "Play on server" button.
-                </p>
+                <div>
+                  <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Description</label>
+                  <input className="input" value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} />
+                </div>
                 <div style={{ display:'flex', gap:10 }}>
-                  <div style={{ flex:3 }}>
-                    <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Server IP / Hostname</label>
-                    <input className="input" value={editForm.default_server_ip}
-                      onChange={e => setEditForm(f => ({ ...f, default_server_ip: e.target.value }))}
-                      placeholder="e.g. mc.example.com" />
+                  <div style={{ flex:1 }}>
+                    <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>MC Version</label>
+                    <select className="select" value={editForm.mc_version} onChange={e => setEditForm(f => ({ ...f, mc_version: e.target.value, loader_version: '' }))}>
+                      {mcVersions.map(v => <option key={v}>{v}</option>)}
+                    </select>
                   </div>
                   <div style={{ flex:1 }}>
-                    <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Port</label>
-                    <input className="input" type="number" value={editForm.default_server_port}
-                      onChange={e => setEditForm(f => ({ ...f, default_server_port: parseInt(e.target.value) || 25565 }))}
-                      placeholder="25565" />
+                    <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Loader</label>
+                    <select className="select" value={editForm.loader} onChange={e => setEditForm(f => ({ ...f, loader: e.target.value, loader_version: '' }))}>
+                      {LOADERS.map(l => <option key={l}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>
+                      Loader Version <span style={{ color:'#6b6b8a' }}>(blank = latest)</span>
+                    </label>
+                    {editForm.loader === 'forge' && forgeVersions.length > 0 ? (
+                      <select className="select" value={editForm.loader_version} onChange={e => setEditForm(f => ({ ...f, loader_version: e.target.value }))}>
+                        <option value="">Latest</option>
+                        {forgeVersions.map(v => <option key={v} value={v}>{v}</option>)}
+                      </select>
+                    ) : (
+                      <input className="input" value={editForm.loader_version} onChange={e => setEditForm(f => ({ ...f, loader_version: e.target.value }))} placeholder={loadingForge ? 'Loading...' : 'Leave blank for latest'} />
+                    )}
                   </div>
                 </div>
               </div>
-            </>
+            </div>
           )}
 
           <div className="card">
