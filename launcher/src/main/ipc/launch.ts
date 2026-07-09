@@ -158,10 +158,11 @@ export function launchHandlers() {
 
     // If a specific server was requested, auto-connect
     if (extras.serverHost) {
-      progress(win, `Will connect to ${extras.serverHost}:${extras.serverPort || 25565} after launch`)
-      opts.server = {
-        host: extras.serverHost,
-        port: extras.serverPort || 25565
+      const port = extras.serverPort || 25565
+      progress(win, `Will connect to ${extras.serverHost}:${port} after launch`)
+      opts.quickPlay = {
+        type: 'multiplayer',
+        identifier: `${extras.serverHost}:${port}`
       }
     }
 
