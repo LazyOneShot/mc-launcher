@@ -9,6 +9,7 @@ import PackDetail from './pages/PackDetail'
 import CreatePack from './pages/CreatePack'
 import UpdateBanner from './components/UpdateBanner'
 import TitleBar from './components/TitleBar'
+import VersionBadge from './components/VersionBadge'
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
+      <VersionBadge />
     </>
   )
 }

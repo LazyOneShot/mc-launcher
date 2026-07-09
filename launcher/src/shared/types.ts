@@ -33,6 +33,33 @@ export interface ModpackFull extends ModpackMeta {
   servers: ModpackServer[]
 }
 
+export interface AuditEntry {
+  id: string
+  pack_id: string
+  actor_uuid: string
+  actor_username: string
+  action: string
+  target: string
+  detail: string
+  created_at: string
+}
+
+export interface UpdateCandidate {
+  mod_id: string
+  current_filename: string
+  new_filename: string
+  new_version_number: string
+  new_version_type: string
+  url: string
+  size: number
+}
+
+export interface CheckUpdatesResponse {
+  checked: number
+  unmatched: number
+  updates: UpdateCandidate[]
+}
+
 export interface AuthTokens {
   access_token: string
   mc_access_token: string

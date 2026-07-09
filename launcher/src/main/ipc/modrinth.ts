@@ -24,48 +24,17 @@ const mr = axios.create({
   timeout: 15000
 })
 
-export interface ModrinthHit {
-  project_id: string
-  slug: string
-  title: string
-  description: string
-  downloads: number
-  icon_url: string | null
-  author: string
-  categories: string[]
-  versions: string[]
-}
-
-export interface ModrinthFile {
-  filename: string
-  url: string
-  size: number
-  primary: boolean
-}
-
-export interface ModrinthVersion {
-  id: string
-  name: string
-  version_number: string
-  version_type: string   // release | beta | alpha
-  game_versions: string[]
-  loaders: string[]
-  date_published: string
-  files: ModrinthFile[]
-}
-
 /**
  * Facets are arrays of arrays: inner arrays OR together, outer arrays AND.
- * Note that mod loaders live under `categories` for the search index,
- * not under a `loaders` facet — that only exists on version objects.
+ * Mod loaders live under `categories` in the search index — the `loaders`
+ * facet only exists on version objects.
  */
 function buildFacets(mcVersion: string, loader: string): string {
-  const facets: string[][] = [
+  return JSON.stringify([
     ['project_type:mod'],
     [`versions:${mcVersion}`],
     [`categories:${loader}`]
-  ]
-  return JSON.stringify(facets)
+  ])
 }
 
 export function modrinthHandlers() {
@@ -81,15 +50,10 @@ export function modrinthHandlers() {
           offset
         }
       })
-      return {
-        hits: data.hits as ModrinthHit[],
-        total: data.total_hits as number,
-        offset: data.offset as number
-      }
+      return { hits: data.hits, total: data.total_hits, offset: data.offset }
     }
   )
 
-  // Versions of one project, already narrowed to the pack's MC version + loader.
   ipcMain.handle(
     'modrinth:versions',
     async (_e, projectId: string, mcVersion: string, loader: string) => {
@@ -99,11 +63,11 @@ export function modrinthHandlers() {
           loaders: JSON.stringify([loader])
         }
       })
-      return data as ModrinthVersion[]
+      return data
     }
   )
 
-  // Hand the CDN URL to our backend, which does the actual fetch + MinIO put.
+  // Hand the CDN URL to our backend, which does the fetch and the MinIO put.
   // Downloading here and re-uploading would push the bytes over the user's
   // home connection twice for no reason.
   ipcMain.handle(
@@ -113,6 +77,29 @@ export function modrinthHandlers() {
         `${API}/modpacks/${packId}/mods/from-url`,
         { url, filename },
         { headers: authHeader() }
+      )
+      return data
+    }
+  )
+
+  // The backend does the hash lookup — it holds the sha1s and can backfill
+  // any that are missing straight from MinIO.
+  ipcMain.handle('modrinth:checkUpdates', async (_e, packId: string) => {
+    const { data } = await axios.post(
+      `${API}/modpacks/${packId}/check-updates`,
+      {},
+      { headers: authHeader(), timeout: 120000 }
+    )
+    return data
+  })
+
+  ipcMain.handle(
+    'modrinth:applyUpdate',
+    async (_e, packId: string, modId: string, url: string, filename: string) => {
+      const { data } = await axios.post(
+        `${API}/modpacks/${packId}/mods/${modId}/update`,
+        { url, filename },
+        { headers: authHeader(), timeout: 120000 }
       )
       return data
     }

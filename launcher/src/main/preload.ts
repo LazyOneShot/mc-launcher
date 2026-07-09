@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('api', {
   onBulkUploadProgress: (cb: (d: any) => void)              => ipcRenderer.on('modpacks:bulkProgress', (_e, d) => cb(d)),
   removeMod:          (packId: string, modId: string)       => ipcRenderer.invoke('modpacks:removeMod', packId, modId),
   pickModFile:        ()                                    => ipcRenderer.invoke('modpacks:pickModFile'),
+  downloadMod:        (filename: string, url: string)       => ipcRenderer.invoke('mods:download', filename, url),
 
   // Local launch options
   getLaunchOptions:   (packId: string)                      => ipcRenderer.invoke('launchOpts:get', packId),
@@ -37,6 +38,20 @@ contextBridge.exposeInMainWorld('api', {
   addServer:          (packId: string, server: object)      => ipcRenderer.invoke('servers:add', packId, server),
   updateServer:       (packId: string, id: string, patch: object) => ipcRenderer.invoke('servers:update', packId, id, patch),
   deleteServer:       (packId: string, id: string)          => ipcRenderer.invoke('servers:delete', packId, id),
+
+  // Modrinth
+  modrinthSearch:     (q: string, mc: string, loader: string, offset?: number)
+                        => ipcRenderer.invoke('modrinth:search', q, mc, loader, offset || 0),
+  modrinthVersions:   (projectId: string, mc: string, loader: string)
+                        => ipcRenderer.invoke('modrinth:versions', projectId, mc, loader),
+  modrinthInstall:    (packId: string, url: string, filename: string)
+                        => ipcRenderer.invoke('modrinth:install', packId, url, filename),
+  checkModUpdates:    (packId: string)                      => ipcRenderer.invoke('modrinth:checkUpdates', packId),
+  applyModUpdate:     (packId: string, modId: string, url: string, filename: string)
+                        => ipcRenderer.invoke('modrinth:applyUpdate', packId, modId, url, filename),
+
+  // Audit
+  getAudit:           (packId: string, limit?: number)      => ipcRenderer.invoke('audit:list', packId, limit || 100),
 
   // Versions
   getMcVersions:      ()                                    => ipcRenderer.invoke('versions:mc'),
@@ -67,10 +82,5 @@ contextBridge.exposeInMainWorld('api', {
   maximizeWindow:     ()                                    => ipcRenderer.invoke('window:maximize'),
   closeWindow:        ()                                    => ipcRenderer.invoke('window:close'),
   isMaximized:        ()                                    => ipcRenderer.invoke('window:isMaximized'),
-  useCustomTitleBar:  ()                                    => ipcRenderer.invoke('window:useCustomTitleBar'),
-
-  // Modrinth
-  modrinthSearch:   (q: string, mc: string, loader: string, offset?: number)              => ipcRenderer.invoke('modrinth:search', q, mc, loader, offset || 0),
-  modrinthVersions: (projectId: string, mc: string, loader: string)                       => ipcRenderer.invoke('modrinth:versions', projectId, mc, loader),
-  modrinthInstall:  (packId: string, url: string, filename: string)                       => ipcRenderer.invoke('modrinth:install', packId, url, filename)
+  useCustomTitleBar:  ()                                    => ipcRenderer.invoke('window:useCustomTitleBar')
 })
