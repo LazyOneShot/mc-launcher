@@ -8,6 +8,7 @@ import { memberHandlers } from './ipc/members'
 import { serverHandlers } from './ipc/servers'
 import { updateHandlers } from './ipc/updater'
 import { versionHandlers } from './ipc/versions'
+import { modrinthHandlers } from './ipc/modrinth'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -120,9 +121,11 @@ if (!gotLock) {
     launchHandlers()
     memberHandlers()
     serverHandlers()
+    modrinthHandlers()
     updateHandlers()
     versionHandlers()
     windowControlHandlers()
+    
   })
 }
 

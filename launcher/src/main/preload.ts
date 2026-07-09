@@ -67,5 +67,10 @@ contextBridge.exposeInMainWorld('api', {
   maximizeWindow:     ()                                    => ipcRenderer.invoke('window:maximize'),
   closeWindow:        ()                                    => ipcRenderer.invoke('window:close'),
   isMaximized:        ()                                    => ipcRenderer.invoke('window:isMaximized'),
-  useCustomTitleBar:  ()                                    => ipcRenderer.invoke('window:useCustomTitleBar')
+  useCustomTitleBar:  ()                                    => ipcRenderer.invoke('window:useCustomTitleBar'),
+
+  // Modrinth
+  modrinthSearch:   (q: string, mc: string, loader: string, offset?: number)              => ipcRenderer.invoke('modrinth:search', q, mc, loader, offset || 0),
+  modrinthVersions: (projectId: string, mc: string, loader: string)                       => ipcRenderer.invoke('modrinth:versions', projectId, mc, loader),
+  modrinthInstall:  (packId: string, url: string, filename: string)                       => ipcRenderer.invoke('modrinth:install', packId, url, filename)
 })
