@@ -1,7 +1,6 @@
 import 'dotenv/config'
 import { app, BrowserWindow, shell, Tray, Menu, nativeImage, ipcMain } from 'electron'
 import { join } from 'path'
-import { autoUpdater } from 'electron-updater'
 import { authHandlers } from './ipc/auth'
 import { modpackHandlers } from './ipc/modpacks'
 import { launchHandlers } from './ipc/launch'
@@ -13,7 +12,6 @@ let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let isQuitting = false
 
-// Custom title bar only on Windows — Mac and Linux use native window controls
 const USE_CUSTOM_TITLEBAR = process.platform === 'win32'
 
 function getIconPath(name: 'png' | 'ico' = 'png'): string {
@@ -98,7 +96,6 @@ function windowControlHandlers() {
   })
   ipcMain.handle('window:close', () => mainWindow?.close())
   ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized() ?? false)
-  // Expose so renderer knows whether to render custom titlebar
   ipcMain.handle('window:useCustomTitleBar', () => USE_CUSTOM_TITLEBAR)
 }
 
@@ -124,12 +121,8 @@ if (!gotLock) {
     updateHandlers()
     versionHandlers()
     windowControlHandlers()
-
-    if (app.isPackaged) {
-      setTimeout(() => {
-        autoUpdater.checkForUpdates().catch(err => console.error('[updater] Auto-check failed:', err))
-      }, 3000)
-    }
+    // NOTE: The renderer's StartupUpdate page now handles the initial update check.
+    // Periodic checks are started after the splash screen completes.
   })
 }
 
