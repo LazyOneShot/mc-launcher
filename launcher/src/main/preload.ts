@@ -40,15 +40,11 @@ contextBridge.exposeInMainWorld('api', {
   deleteServer:       (packId: string, id: string)          => ipcRenderer.invoke('servers:delete', packId, id),
 
   // Modrinth
-  modrinthSearch:     (q: string, mc: string, loader: string, offset?: number)
-                        => ipcRenderer.invoke('modrinth:search', q, mc, loader, offset || 0),
-  modrinthVersions:   (projectId: string, mc: string, loader: string)
-                        => ipcRenderer.invoke('modrinth:versions', projectId, mc, loader),
-  modrinthInstall:    (packId: string, url: string, filename: string)
-                        => ipcRenderer.invoke('modrinth:install', packId, url, filename),
-  checkModUpdates:    (packId: string)                      => ipcRenderer.invoke('modrinth:checkUpdates', packId),
-  applyModUpdate:     (packId: string, modId: string, url: string, filename: string)
-                        => ipcRenderer.invoke('modrinth:applyUpdate', packId, modId, url, filename),
+  modrinthSearch:     (q: string, mc: string, loader: string, offset?: number)            => ipcRenderer.invoke('modrinth:search', q, mc, loader, offset || 0),
+  modrinthVersions:   (projectId: string, mc: string, loader: string)                     => ipcRenderer.invoke('modrinth:versions', projectId, mc, loader),
+  modrinthInstall:    (packId: string, url: string, filename: string)                     => ipcRenderer.invoke('modrinth:install', packId, url, filename),
+  checkModUpdates:    (packId: string)                                                    => ipcRenderer.invoke('modrinth:checkUpdates', packId),
+  applyModUpdate:     (packId: string, modId: string, url: string, filename: string)      => ipcRenderer.invoke('modrinth:applyUpdate', packId, modId, url, filename),
 
   // Audit
   getAudit:           (packId: string, limit?: number)      => ipcRenderer.invoke('audit:list', packId, limit || 100),
