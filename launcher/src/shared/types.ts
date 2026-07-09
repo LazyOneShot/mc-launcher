@@ -1,3 +1,12 @@
+export interface ModpackServer {
+  id: string
+  pack_id: string
+  name: string
+  host: string
+  port: number
+  sort_order: number
+}
+
 export interface ModpackMeta {
   id: string
   name: string
@@ -6,8 +15,6 @@ export interface ModpackMeta {
   loader: 'forge' | 'neoforge' | 'fabric'
   loader_version: string
   owner: string
-  default_server_ip: string
-  default_server_port: number
   created_at: string
   updated_at: string
 }
@@ -23,6 +30,7 @@ export interface Mod {
 
 export interface ModpackFull extends ModpackMeta {
   mods: Mod[]
+  servers: ModpackServer[]
 }
 
 export interface AuthTokens {

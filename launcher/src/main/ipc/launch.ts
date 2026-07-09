@@ -46,9 +46,10 @@ function defaultJavaExe(): string {
   return process.platform === 'win32' ? 'javaw' : 'java'
 }
 
-// Extra options passed from the renderer — currently just "connect to server"
+// Extras: caller can pass a specific server to auto-connect to
 interface LaunchExtras {
-  connectToServer?: boolean
+  serverHost?: string
+  serverPort?: number
 }
 
 export function launchHandlers() {
@@ -155,12 +156,12 @@ export function launchHandlers() {
     if (javaPath) opts.javaPath = javaPath
     if (launchOpts.jvm_args.trim()) opts.customArgs = launchOpts.jvm_args.trim().split(/\s+/)
 
-    // Auto-connect to server if requested and configured
-    if (extras.connectToServer && pack.default_server_ip) {
-      progress(win, `Will connect to ${pack.default_server_ip}:${pack.default_server_port} after launch`)
+    // If a specific server was requested, auto-connect
+    if (extras.serverHost) {
+      progress(win, `Will connect to ${extras.serverHost}:${extras.serverPort || 25565} after launch`)
       opts.server = {
-        host: pack.default_server_ip,
-        port: pack.default_server_port || 25565
+        host: extras.serverHost,
+        port: extras.serverPort || 25565
       }
     }
 

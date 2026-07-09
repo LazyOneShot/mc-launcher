@@ -45,6 +45,7 @@ jobs:
         working-directory: launcher
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EP_DRAFT: false
         run: npm run publish:win
 
       - name: Build and publish (Linux)
@@ -52,4 +53,5 @@ jobs:
         working-directory: launcher
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EP_DRAFT: false
         run: npm run publish:linux

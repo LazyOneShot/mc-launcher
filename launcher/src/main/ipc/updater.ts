@@ -3,7 +3,7 @@ import { autoUpdater } from 'electron-updater'
 
 // Auto-updates run only on Windows and macOS.
 // Linux users update by re-running the install script (AppImages can't safely self-update).
-const AUTO_UPDATE_SUPPORTED = process.platform === 'win32' || process.platform === 'darwin'
+const AUTO_UPDATE_SUPPORTED = true
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000  // 5 minutes
 
