@@ -1,6 +1,6 @@
 {
   "name": "mc-launcher",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "description": "Custom Minecraft launcher with cloud modpacks",
   "author": "LazyOneShot",
   "main": "out/main/index.js",
@@ -10,7 +10,8 @@
     "package": "electron-builder",
     "publish": "electron-builder --publish always",
     "publish:linux": "electron-builder --linux --publish always",
-    "publish:win": "electron-builder --win --publish always"
+    "publish:win": "electron-builder --win --publish always",
+    "publish:mac": "electron-builder --mac --publish always"
   },
   "dependencies": {
     "@azure/msal-node": "^2.6.0",
@@ -57,17 +58,20 @@
     "linux": {
       "target": ["AppImage"],
       "icon": "build/icon.png",
+      "artifactName": "MC-Launcher-${version}.${ext}",
       "category": "Game",
       "synopsis": "Cloud-synced Minecraft mod launcher",
       "description": "A custom Minecraft launcher with cloud-synced modpacks, Microsoft auth, and auto-updates."
     },
     "win": {
       "target": "nsis",
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "artifactName": "MC-Launcher-Setup-${version}.${ext}"
     },
     "mac": {
       "target": "dmg",
       "icon": "build/icon.png",
+      "artifactName": "MC-Launcher-${version}.${ext}",
       "category": "public.app-category.games"
     }
   }
