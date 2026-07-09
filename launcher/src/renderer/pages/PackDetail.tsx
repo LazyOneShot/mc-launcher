@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import type { ModpackFull, ModpackServer } from '../../shared/types'
+import ModrinthBrowser from '../components/ModrinthBrowser'
 
 interface Member {
   id: string
@@ -47,6 +48,7 @@ export default function PackDetail() {
   const [loadingForge, setLoadingForge] = useState(false)
   const [newServer, setNewServer] = useState({ name: '', host: '', port: 25565 })
   const [serverError, setServerError] = useState('')
+  const [showModrinth, setShowModrinth] = useState(false)
   const logRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -102,6 +104,12 @@ export default function PackDetail() {
     const fresh: any = await window.api.getModpack(id)
     setPack(fresh)
     if (result.failed === 0) setTimeout(() => setBulkProgress(null), 3000)
+  }
+
+  const refreshPack = async () => {
+    if (!id) return
+    const fresh: any = await window.api.getModpack(id)
+    setPack(fresh)
   }
 
   const handleSaveSettings = async () => {
@@ -234,6 +242,11 @@ export default function PackDetail() {
         <div>
           <div style={{ display:'flex', gap:8, marginBottom:12 }}>
             <input className="input" style={{ flex:1 }} placeholder="Search mods..." value={modSearch} onChange={e => setModSearch(e.target.value)} />
+            {canEdit && (
+              <button onClick={() => setShowModrinth(true)} className="btn btn-secondary">
+                Browse Modrinth
+              </button>
+            )}
             {canEdit && (
               <button onClick={handleUpload} disabled={bulkProgress?.status === 'uploading'} className="btn btn-primary">
                 {bulkProgress?.status === 'uploading' ? 'Uploading...' : '+ Upload'}
@@ -486,6 +499,17 @@ export default function PackDetail() {
             </div>
           )}
         </div>
+      )}
+
+      {showModrinth && (
+        <ModrinthBrowser
+          packId={pack.id}
+          mcVersion={pack.mc_version}
+          loader={pack.loader}
+          installedFilenames={pack.mods.map(m => m.filename)}
+          onClose={() => setShowModrinth(false)}
+          onInstalled={refreshPack}
+        />
       )}
     </div>
   )
