@@ -13,15 +13,13 @@ permissions:
 jobs:
   build:
     strategy:
-      fail-fast: false          # keep going even if one platform fails
+      fail-fast: false
       matrix:
         include:
           - os: windows-latest
             platform: win
           - os: ubuntu-latest
             platform: linux
-          - os: macos-latest
-            platform: mac
 
     runs-on: ${{ matrix.os }}
 
@@ -57,12 +55,3 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run publish:linux
-
-      - name: Build and publish (macOS)
-        if: matrix.platform == 'mac'
-        working-directory: launcher
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS builds don't need code signing for our use case
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-        run: npm run publish:mac

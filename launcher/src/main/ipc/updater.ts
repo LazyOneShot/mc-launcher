@@ -1,9 +1,16 @@
-import { ipcMain, BrowserWindow, dialog, app } from 'electron'
+import { ipcMain, BrowserWindow, app } from 'electron'
 import { autoUpdater } from 'electron-updater'
 
+// Auto-updates run only on Windows and macOS.
+// Linux users update by re-running the install script (AppImages can't safely self-update).
+const AUTO_UPDATE_SUPPORTED = process.platform === 'win32' || process.platform === 'darwin'
+
+const CHECK_INTERVAL_MS = 5 * 60 * 1000  // 5 minutes
+
+let periodicCheckTimer: NodeJS.Timeout | null = null
+
 export function updateHandlers() {
-  // Configure — pulls from GitHub releases on the repo declared in package.json
-  autoUpdater.autoDownload = false          // ask user first
+  autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
   autoUpdater.allowPrerelease = false
 
@@ -42,14 +49,21 @@ export function updateHandlers() {
   })
 
   ipcMain.handle('update:check', async () => {
-    // Skip in dev
     if (!app.isPackaged) {
       console.log('[updater] Skipping check in dev mode')
-      return { skipped: true }
+      return { skipped: true, reason: 'dev' }
+    }
+    if (!AUTO_UPDATE_SUPPORTED) {
+      console.log('[updater] Auto-update not supported on this platform')
+      return { skipped: true, reason: 'platform' }
     }
     try {
       const result = await autoUpdater.checkForUpdates()
-      return { version: result?.updateInfo?.version, currentVersion: app.getVersion() }
+      return {
+        version: result?.updateInfo?.version,
+        currentVersion: app.getVersion(),
+        updateAvailable: !!result?.updateInfo && result.updateInfo.version !== app.getVersion()
+      }
     } catch (e: any) {
       return { error: e.message }
     }
@@ -65,6 +79,28 @@ export function updateHandlers() {
   })
 
   ipcMain.handle('update:currentVersion', () => app.getVersion())
+
+  ipcMain.handle('update:isSupported', () => AUTO_UPDATE_SUPPORTED)
+
+  // Start the periodic background check
+  ipcMain.handle('update:startPeriodicCheck', () => {
+    if (periodicCheckTimer) return
+    if (!app.isPackaged || !AUTO_UPDATE_SUPPORTED) return
+
+    periodicCheckTimer = setInterval(() => {
+      console.log('[updater] Periodic check')
+      autoUpdater.checkForUpdates().catch(err => {
+        console.error('[updater] Periodic check failed:', err)
+      })
+    }, CHECK_INTERVAL_MS)
+  })
+
+  ipcMain.handle('update:stopPeriodicCheck', () => {
+    if (periodicCheckTimer) {
+      clearInterval(periodicCheckTimer)
+      periodicCheckTimer = null
+    }
+  })
 }
 
 function sendToRenderer(channel: string, data: any) {

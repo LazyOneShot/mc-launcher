@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './styles.css'
+import StartupUpdate from './pages/StartupUpdate'
 import Login from './pages/Login'
 import Home from './pages/Home'
 import PackDetail from './pages/PackDetail'
@@ -16,11 +17,12 @@ function App() {
       <UpdateBanner />
       <div className="app-content">
         <Routes>
+          <Route path="/" element={<StartupUpdate />} />
           <Route path="/login" element={<Login />} />
           <Route path="/home" element={<Home />} />
           <Route path="/pack/:id" element={<PackDetail />} />
           <Route path="/create" element={<CreatePack />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
     </>
