@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('api', {
   updateModpack:      (id: string, data: object)            => ipcRenderer.invoke('modpacks:update', id, data),
   deleteModpack:      (id: string)                          => ipcRenderer.invoke('modpacks:delete', id),
   uploadMod:          (packId: string, fp: string)          => ipcRenderer.invoke('modpacks:uploadMod', packId, fp),
+  uploadModsBulk:     (packId: string, fps: string[])       => ipcRenderer.invoke('modpacks:uploadModsBulk', packId, fps),
+  onBulkUploadProgress: (cb: (d: any) => void)              => ipcRenderer.on('modpacks:bulkProgress', (_e, d) => cb(d)),
   removeMod:          (packId: string, modId: string)       => ipcRenderer.invoke('modpacks:removeMod', packId, modId),
   pickModFile:        ()                                    => ipcRenderer.invoke('modpacks:pickModFile'),
 
@@ -36,7 +38,7 @@ contextBridge.exposeInMainWorld('api', {
   getLatestForge:     (mc: string)                          => ipcRenderer.invoke('versions:forge:latest', mc),
 
   // Launch
-  syncAndLaunch:      (packId: string)                      => ipcRenderer.invoke('launch:syncAndLaunch', packId),
+  syncAndLaunch:      (packId: string, extras?: object)     => ipcRenderer.invoke('launch:syncAndLaunch', packId, extras || {}),
   onLaunchProgress:   (cb: (msg: string) => void)           => ipcRenderer.on('launch:progress', (_e, msg) => cb(msg)),
 
   // Updater

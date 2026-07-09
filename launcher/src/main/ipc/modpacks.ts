@@ -1,4 +1,4 @@
-import { ipcMain, dialog } from 'electron'
+import { ipcMain, dialog, BrowserWindow } from 'electron'
 import axios from 'axios'
 import Store from 'electron-store'
 import * as fs from 'fs-extra'
@@ -14,6 +14,10 @@ function authHeader() {
   const t = store.get('tokens') as AuthTokens | undefined
   if (!t) throw new Error('Not logged in')
   return { Authorization: `Bearer ${t.access_token}` }
+}
+
+function progressToRenderer(win: BrowserWindow | null, evt: string, data: any) {
+  win?.webContents.send(evt, data)
 }
 
 export function modpackHandlers() {
@@ -32,7 +36,6 @@ export function modpackHandlers() {
     return data
   })
 
-  // Join a pack — creates a viewer membership
   ipcMain.handle('modpacks:join', async (_e, id: string) => {
     const { data } = await axios.post(`${API}/modpacks/${id}/join`, {}, { headers: authHeader() })
     return data
@@ -59,6 +62,55 @@ export function modpackHandlers() {
     return data
   })
 
+  // Bulk upload — takes a list of file paths and streams progress events
+  ipcMain.handle('modpacks:uploadModsBulk', async (event, packId: string, filePaths: string[]) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const total = filePaths.length
+    const results: any[] = []
+    let succeeded = 0
+    let failed = 0
+
+    for (let i = 0; i < filePaths.length; i++) {
+      const filePath = filePaths[i]
+      const filename = filePath.split(/[\\/]/).pop() || filePath
+
+      progressToRenderer(win, 'modpacks:bulkProgress', {
+        current: i + 1,
+        total,
+        filename,
+        succeeded,
+        failed,
+        status: 'uploading'
+      })
+
+      try {
+        const form = new FormData()
+        form.append('file', fs.createReadStream(filePath))
+        const { data } = await axios.post(
+          `${API}/modpacks/${packId}/mods`,
+          form,
+          { headers: { ...authHeader(), ...form.getHeaders() } }
+        )
+        results.push({ filename, success: true, mod: data })
+        succeeded++
+      } catch (e: any) {
+        results.push({ filename, success: false, error: e?.response?.data?.detail || e.message })
+        failed++
+      }
+    }
+
+    progressToRenderer(win, 'modpacks:bulkProgress', {
+      current: total,
+      total,
+      filename: '',
+      succeeded,
+      failed,
+      status: 'done'
+    })
+
+    return { results, succeeded, failed, total }
+  })
+
   ipcMain.handle('modpacks:removeMod', async (_e, packId: string, modId: string) => {
     await axios.delete(`${API}/modpacks/${packId}/mods/${modId}`, { headers: authHeader() })
     return true
@@ -74,7 +126,6 @@ export function modpackHandlers() {
     return result.filePaths
   })
 
-  // ── Local per-user launch options ──────────────────────────────────────────
   ipcMain.handle('launchOpts:get', (_e, packId: string) => {
     const all = localOpts.get('launchOptions', {}) as Record<string, any>
     return all[packId] || null
