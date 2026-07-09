@@ -6,9 +6,11 @@ import { modpackHandlers } from './ipc/modpacks'
 import { launchHandlers } from './ipc/launch'
 import { memberHandlers } from './ipc/members'
 import { serverHandlers } from './ipc/servers'
+import { modrinthHandlers } from './ipc/modrinth'
+import { auditHandlers } from './ipc/audit'
+import { downloadHandlers } from './ipc/downloads'
 import { updateHandlers } from './ipc/updater'
 import { versionHandlers } from './ipc/versions'
-import { modrinthHandlers } from './ipc/modrinth'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -122,10 +124,11 @@ if (!gotLock) {
     memberHandlers()
     serverHandlers()
     modrinthHandlers()
+    auditHandlers()
+    downloadHandlers()
     updateHandlers()
     versionHandlers()
     windowControlHandlers()
-    
   })
 }
 

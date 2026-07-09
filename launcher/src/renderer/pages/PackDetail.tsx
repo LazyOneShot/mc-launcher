@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import type { ModpackFull, ModpackServer } from '../../shared/types'
+import type { ModpackFull, ModpackServer, AuditEntry } from '../../shared/types'
 import ModrinthBrowser from '../components/ModrinthBrowser'
+import UpdateChecker from '../components/UpdateChecker'
 
 interface Member {
   id: string
@@ -24,7 +25,43 @@ const RAM_OPTIONS = ['1G', '2G', '3G', '4G', '6G', '8G', '12G', '16G']
 const FALLBACK_MC_VERSIONS = ['1.21.1', '1.20.4', '1.20.1', '1.19.4', '1.18.2']
 const AIKARS_FLAGS = '-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1'
 
-type Tab = 'mods' | 'members' | 'servers' | 'settings'
+type Tab = 'mods' | 'servers' | 'members' | 'activity' | 'settings'
+
+const ACTION_LABELS: Record<string, string> = {
+  'pack.create':        'created the pack',
+  'pack.update':        'changed pack settings',
+  'pack.transfer':      'transferred ownership to',
+  'mod.add':            'added mod',
+  'mod.remove':         'removed mod',
+  'mod.update':         'updated mod',
+  'member.add':         'added member',
+  'member.remove':      'removed member',
+  'member.join':        'joined the pack',
+  'member.role_change': 'changed role for',
+  'server.add':         'added server',
+  'server.remove':      'removed server',
+  'server.update':      'edited server'
+}
+
+function actionColor(action: string): string {
+  if (action.endsWith('.remove')) return '#f87171'
+  if (action.endsWith('.add') || action === 'member.join') return '#4ade80'
+  if (action.endsWith('.update') || action.endsWith('.role_change')) return '#fbbf24'
+  if (action === 'pack.transfer') return '#c084fc'
+  return '#8888aa'
+}
+
+function timeAgo(iso: string): string {
+  // Backend stores naive UTC. Without the Z, the browser reads it as local time
+  // and every entry looks hours off.
+  const then = new Date(iso.endsWith('Z') ? iso : iso + 'Z').getTime()
+  const secs = Math.floor((Date.now() - then) / 1000)
+  if (secs < 60) return 'just now'
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`
+  if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`
+  if (secs < 604800) return `${Math.floor(secs / 86400)}d ago`
+  return new Date(then).toLocaleDateString()
+}
 
 export default function PackDetail() {
   const { id } = useParams<{ id: string }>()
@@ -32,6 +69,8 @@ export default function PackDetail() {
   const [pack, setPack] = useState<ModpackFull | null>(null)
   const [members, setMembers] = useState<Member[]>([])
   const [servers, setServers] = useState<ModpackServer[]>([])
+  const [audit, setAudit] = useState<AuditEntry[]>([])
+  const [auditLoaded, setAuditLoaded] = useState(false)
   const [log, setLog] = useState<string[]>([])
   const [launching, setLaunching] = useState(false)
   const [bulkProgress, setBulkProgress] = useState<BulkProgress | null>(null)
@@ -49,6 +88,8 @@ export default function PackDetail() {
   const [newServer, setNewServer] = useState({ name: '', host: '', port: 25565 })
   const [serverError, setServerError] = useState('')
   const [showModrinth, setShowModrinth] = useState(false)
+  const [showUpdates, setShowUpdates] = useState(false)
+  const [downloading, setDownloading] = useState<string | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -66,6 +107,15 @@ export default function PackDetail() {
     window.api.getMcVersions().then((vs: string[]) => { if (vs?.length > 0) setMcVersions(vs) })
   }, [id])
 
+  // Only fetch the log when the tab is actually opened.
+  useEffect(() => {
+    if (tab !== 'activity' || !id || auditLoaded) return
+    window.api.getAudit(id).then((rows: AuditEntry[]) => {
+      setAudit(rows)
+      setAuditLoaded(true)
+    }).catch(() => setAuditLoaded(true))
+  }, [tab, id, auditLoaded])
+
   useEffect(() => {
     if (!editForm.mc_version || editForm.loader !== 'forge') { setForgeVersions([]); return }
     setLoadingForge(true)
@@ -82,6 +132,13 @@ export default function PackDetail() {
   const myMembership = members.find(m => session && m.minecraft_uuid === session.minecraft_uuid)
   const myRole = isOwner ? 'owner' : myMembership?.role || 'viewer'
   const canEdit = myRole === 'owner' || myRole === 'editor'
+
+  const refreshPack = async () => {
+    if (!id) return
+    const fresh: any = await window.api.getModpack(id)
+    setPack(fresh)
+    setAuditLoaded(false)   // the action we just took belongs in the log
+  }
 
   const handleLaunch = async (server?: ModpackServer) => {
     if (!id) return
@@ -101,15 +158,18 @@ export default function PackDetail() {
     if (filePaths.length === 0) return
     setBulkProgress({ current: 0, total: filePaths.length, filename: '', succeeded: 0, failed: 0, status: 'uploading' })
     const result = await window.api.uploadModsBulk(id, filePaths)
-    const fresh: any = await window.api.getModpack(id)
-    setPack(fresh)
+    await refreshPack()
     if (result.failed === 0) setTimeout(() => setBulkProgress(null), 3000)
   }
 
-  const refreshPack = async () => {
-    if (!id) return
-    const fresh: any = await window.api.getModpack(id)
-    setPack(fresh)
+  const handleDownloadMod = async (filename: string, url: string) => {
+    setDownloading(filename)
+    try {
+      await window.api.downloadMod(filename, url)
+    } catch {
+      // user cancelled, or the presigned URL expired — nothing worth surfacing
+    }
+    setDownloading(null)
   }
 
   const handleSaveSettings = async () => {
@@ -117,6 +177,7 @@ export default function PackDetail() {
     if (isOwner) {
       const updated: any = await window.api.updateModpack(id, editForm)
       setPack(p => p ? { ...p, ...updated } : p)
+      setAuditLoaded(false)
     }
     await window.api.setLaunchOptions(id, launchOpts)
     setSavedMsg('Saved!')
@@ -140,6 +201,7 @@ export default function PackDetail() {
       })
       setServers(ss => [...ss, s])
       setNewServer({ name: '', host: '', port: 25565 })
+      setAuditLoaded(false)
     } catch (e: any) {
       setServerError(e?.response?.data?.detail || 'Failed to add server')
     }
@@ -149,6 +211,7 @@ export default function PackDetail() {
     if (!id) return
     await window.api.deleteServer(id, serverId)
     setServers(ss => ss.filter(s => s.id !== serverId))
+    setAuditLoaded(false)
   }
 
   const handleAddMember = async () => {
@@ -158,6 +221,7 @@ export default function PackDetail() {
       const m = await window.api.addMember(id, newMember.trim())
       setMembers(mm => [...mm, m])
       setNewMember('')
+      setAuditLoaded(false)
     } catch (e: any) {
       setMemberError(e?.response?.data?.detail || 'Failed to add member')
     }
@@ -167,18 +231,21 @@ export default function PackDetail() {
     if (!id) return
     const updated: any = await window.api.changeRole(id, uuid, role)
     setMembers(mm => mm.map(m => m.minecraft_uuid === uuid ? { ...m, role: updated.role } : m))
+    setAuditLoaded(false)
   }
 
   const handleRemoveMember = async (uuid: string) => {
     if (!id) return
     await window.api.removeMember(id, uuid)
     setMembers(mm => mm.filter(m => m.minecraft_uuid !== uuid))
+    setAuditLoaded(false)
   }
 
   const handleTransfer = async (uuid: string, username: string) => {
     if (!id || !confirm(`Transfer ownership to ${username}?`)) return
     await window.api.transferOwnership(id, uuid)
     setPack(p => p ? { ...p, owner: uuid } : p)
+    setAuditLoaded(false)
   }
 
   if (!pack) return <div className="page">Loading...</div>
@@ -222,7 +289,7 @@ export default function PackDetail() {
       )}
 
       <div style={{ display:'flex', gap:2, borderBottom:'1px solid #22243d', marginBottom:16 }}>
-        {(['mods', 'servers', 'members', 'settings'] as Tab[]).map(t => (
+        {(['mods', 'servers', 'members', 'activity', 'settings'] as Tab[]).map(t => (
           <button key={t} onClick={() => setTab(t)}
             style={{
               padding:'10px 20px', background:'none', border:'none',
@@ -237,20 +304,24 @@ export default function PackDetail() {
         ))}
       </div>
 
-      {/* MODS TAB */}
+      {/* MODS */}
       {tab === 'mods' && (
         <div>
           <div style={{ display:'flex', gap:8, marginBottom:12 }}>
             <input className="input" style={{ flex:1 }} placeholder="Search mods..." value={modSearch} onChange={e => setModSearch(e.target.value)} />
             {canEdit && (
-              <button onClick={() => setShowModrinth(true)} className="btn btn-secondary">
-                Browse Modrinth
-              </button>
-            )}
-            {canEdit && (
-              <button onClick={handleUpload} disabled={bulkProgress?.status === 'uploading'} className="btn btn-primary">
-                {bulkProgress?.status === 'uploading' ? 'Uploading...' : '+ Upload'}
-              </button>
+              <>
+                <button onClick={() => setShowUpdates(true)} className="btn btn-secondary"
+                  disabled={pack.mods.length === 0}>
+                  Check Updates
+                </button>
+                <button onClick={() => setShowModrinth(true)} className="btn btn-secondary">
+                  Browse Modrinth
+                </button>
+                <button onClick={handleUpload} disabled={bulkProgress?.status === 'uploading'} className="btn btn-primary">
+                  {bulkProgress?.status === 'uploading' ? 'Uploading...' : '+ Upload'}
+                </button>
+              </>
             )}
           </div>
 
@@ -282,11 +353,24 @@ export default function PackDetail() {
             {filteredMods.map(mod => (
               <div key={mod.id} className="mod-row">
                 <span className="mod-filename">{mod.filename}</span>
-                <div style={{ display:'flex', gap:12, alignItems:'center' }}>
+                <div style={{ display:'flex', gap:10, alignItems:'center' }}>
                   <span style={{ color:'#6b6b8a', fontSize:11 }}>{(mod.size_bytes / 1024 / 1024).toFixed(1)} MB</span>
+                  <button className="icon-btn" title="Download"
+                    disabled={downloading === mod.filename}
+                    onClick={() => handleDownloadMod(mod.filename, mod.download_url)}>
+                    {downloading === mod.filename
+                      ? '…'
+                      : <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ display:'block' }}>
+                          <path d="M8 1v9M8 10L4.5 6.5M8 10l3.5-3.5M2 13h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                    }
+                  </button>
                   {canEdit && (
-                    <button className="icon-btn"
-                      onClick={() => id && window.api.removeMod(id, mod.id).then(() => setPack(p => p ? { ...p, mods: p.mods.filter(m => m.id !== mod.id) } : p))}>✕</button>
+                    <button className="icon-btn" title="Remove"
+                      onClick={() => id && window.api.removeMod(id, mod.id).then(() => {
+                        setPack(p => p ? { ...p, mods: p.mods.filter(m => m.id !== mod.id) } : p)
+                        setAuditLoaded(false)
+                      })}>✕</button>
                   )}
                 </div>
               </div>
@@ -300,7 +384,7 @@ export default function PackDetail() {
         </div>
       )}
 
-      {/* SERVERS TAB */}
+      {/* SERVERS */}
       {tab === 'servers' && (
         <div>
           {isOwner && (
@@ -344,15 +428,13 @@ export default function PackDetail() {
                   {s.host}:{s.port}
                 </span>
               </div>
-              {isOwner && (
-                <button onClick={() => handleDeleteServer(s.id)} className="icon-btn">✕</button>
-              )}
+              {isOwner && <button onClick={() => handleDeleteServer(s.id)} className="icon-btn">✕</button>}
             </div>
           ))}
         </div>
       )}
 
-      {/* MEMBERS TAB */}
+      {/* MEMBERS */}
       {tab === 'members' && (
         <div>
           {isOwner && (
@@ -405,7 +487,41 @@ export default function PackDetail() {
         </div>
       )}
 
-      {/* SETTINGS TAB */}
+      {/* ACTIVITY */}
+      {tab === 'activity' && (
+        <div>
+          {!auditLoaded && (
+            <p style={{ color:'#6b6b8a', fontSize:13, textAlign:'center', padding:24 }}>Loading activity...</p>
+          )}
+          {auditLoaded && audit.length === 0 && (
+            <div style={{ padding:24, textAlign:'center', color:'#6b6b8a', fontSize:13, background:'#0d0e1e', border:'1px solid #22243d', borderRadius:8 }}>
+              Nothing here yet. Actions taken from now on will show up.
+            </div>
+          )}
+          {audit.map(e => (
+            <div key={e.id} style={{
+              display:'flex', alignItems:'baseline', gap:8,
+              padding:'10px 12px', borderBottom:'1px solid #1a1b30', fontSize:13
+            }}>
+              <span style={{ fontWeight:600, minWidth:0 }}>{e.actor_username}</span>
+              <span style={{ color: actionColor(e.action) }}>
+                {ACTION_LABELS[e.action] || e.action}
+              </span>
+              {e.target && (
+                <span style={{ color:'#e0e0e0', fontFamily:'Consolas, monospace', fontSize:12, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                  {e.target}
+                </span>
+              )}
+              {e.detail && <span style={{ color:'#6b6b8a', fontSize:11 }}>({e.detail})</span>}
+              <span style={{ marginLeft:'auto', color:'#4a4a63', fontSize:11, flexShrink:0 }}>
+                {timeAgo(e.created_at)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* SETTINGS */}
       {tab === 'settings' && (
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           {isOwner && (
@@ -509,6 +625,14 @@ export default function PackDetail() {
           installedFilenames={pack.mods.map(m => m.filename)}
           onClose={() => setShowModrinth(false)}
           onInstalled={refreshPack}
+        />
+      )}
+
+      {showUpdates && (
+        <UpdateChecker
+          packId={pack.id}
+          onClose={() => setShowUpdates(false)}
+          onApplied={refreshPack}
         />
       )}
     </div>
