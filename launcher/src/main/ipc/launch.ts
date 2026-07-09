@@ -12,12 +12,6 @@ import type { Mod, ModpackFull } from '../../shared/types'
 const API = process.env.API_URL || 'https://mc-api.daboismc.win'
 const localOpts = new Store<{ launchOptions?: Record<string, any> }>({ name: 'launch-options' })
 
-/**
- * Cross-platform per-pack data directory:
- * Windows: %APPDATA%\.mc-launcher\packs\<packId>
- * macOS:   ~/Library/Application Support/mc-launcher/packs/<packId>
- * Linux:   ~/.config/mc-launcher/packs/<packId>
- */
 function packDir(packId: string) {
   return path.join(app.getPath('userData'), 'packs', packId)
 }
@@ -48,16 +42,17 @@ function getLocalLaunchOptions(packId: string): LaunchOptions {
   }
 }
 
-/**
- * Get the default Java executable name for the current platform.
- * Windows uses javaw (windowless), Mac/Linux use java.
- */
 function defaultJavaExe(): string {
   return process.platform === 'win32' ? 'javaw' : 'java'
 }
 
+// Extra options passed from the renderer — currently just "connect to server"
+interface LaunchExtras {
+  connectToServer?: boolean
+}
+
 export function launchHandlers() {
-  ipcMain.handle('launch:syncAndLaunch', async (_e, packId: string) => {
+  ipcMain.handle('launch:syncAndLaunch', async (_e, packId: string, extras: LaunchExtras = {}) => {
     const win = BrowserWindow.getFocusedWindow()
 
     progress(win, 'Checking Minecraft session...')
@@ -159,6 +154,15 @@ export function launchHandlers() {
 
     if (javaPath) opts.javaPath = javaPath
     if (launchOpts.jvm_args.trim()) opts.customArgs = launchOpts.jvm_args.trim().split(/\s+/)
+
+    // Auto-connect to server if requested and configured
+    if (extras.connectToServer && pack.default_server_ip) {
+      progress(win, `Will connect to ${pack.default_server_ip}:${pack.default_server_port} after launch`)
+      opts.server = {
+        host: pack.default_server_ip,
+        port: pack.default_server_port || 25565
+      }
+    }
 
     if (pack.loader === 'forge') {
       opts.forge = await ensureForgeInstaller(pack.mc_version, loaderVersion, root, win)

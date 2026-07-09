@@ -28,7 +28,7 @@ class ModpackMember(SQLModel, table=True):
     pack_id: str = Field(foreign_key="modpack.id")
     minecraft_uuid: str
     minecraft_username: str
-    role: str = "editor"
+    role: str = "viewer"
     added_at: datetime = Field(default_factory=datetime.utcnow)
     modpack: Optional["Modpack"] = Relationship(back_populates="members")
 
@@ -43,6 +43,9 @@ class ModpackMemberRead(SQLModel):
 class AddMemberRequest(SQLModel):
     minecraft_username: str
 
+class ChangeRoleRequest(SQLModel):
+    role: str
+
 class TransferOwnershipRequest(SQLModel):
     minecraft_uuid: str
 
@@ -55,8 +58,8 @@ class Modpack(SQLModel, table=True):
     loader: str
     loader_version: str
     owner: str
-    # Launch options (JSON string of { min_ram, max_ram, jvm_args, java_path })
-    launch_options: str = '{"min_ram":"2G","max_ram":"4G","jvm_args":"","java_path":""}'
+    default_server_ip: str = ""
+    default_server_port: int = 25565
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     mods: List[Mod] = Relationship(back_populates="modpack")
@@ -68,7 +71,7 @@ class ModpackCreate(SQLModel):
     description: str = ""
     mc_version: str
     loader: str
-    loader_version: str
+    loader_version: str = ""
 
 class ModpackUpdate(SQLModel):
     name: Optional[str] = None
@@ -76,7 +79,8 @@ class ModpackUpdate(SQLModel):
     mc_version: Optional[str] = None
     loader: Optional[str] = None
     loader_version: Optional[str] = None
-    launch_options: Optional[str] = None
+    default_server_ip: Optional[str] = None
+    default_server_port: Optional[int] = None
 
 class ModpackRead(SQLModel):
     id: str
@@ -86,7 +90,8 @@ class ModpackRead(SQLModel):
     loader: str
     loader_version: str
     owner: str
-    launch_options: str
+    default_server_ip: str = ""
+    default_server_port: int = 25565
     created_at: datetime
     updated_at: datetime
     mods: List[ModRead] = []
