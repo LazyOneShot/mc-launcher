@@ -32,6 +32,12 @@ contextBridge.exposeInMainWorld('api', {
   removeMember:       (packId: string, uuid: string)        => ipcRenderer.invoke('members:remove', packId, uuid),
   transferOwnership:  (packId: string, uuid: string)        => ipcRenderer.invoke('members:transfer', packId, uuid),
 
+  // Servers
+  listServers:        (packId: string)                      => ipcRenderer.invoke('servers:list', packId),
+  addServer:          (packId: string, server: object)      => ipcRenderer.invoke('servers:add', packId, server),
+  updateServer:       (packId: string, id: string, patch: object) => ipcRenderer.invoke('servers:update', packId, id, patch),
+  deleteServer:       (packId: string, id: string)          => ipcRenderer.invoke('servers:delete', packId, id),
+
   // Versions
   getMcVersions:      ()                                    => ipcRenderer.invoke('versions:mc'),
   getForgeVersions:   (mc: string)                          => ipcRenderer.invoke('versions:forge', mc),

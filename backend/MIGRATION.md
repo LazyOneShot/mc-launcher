@@ -1,23 +1,45 @@
-# Migration for v0.5.0
+# Migration — Multi-server support
 
-Adds `default_server_ip` and `default_server_port` columns to the `modpack` table.
+Also drops the old broken default_server_ip/port columns if they exist.
 
-## Option 1 — Nuke DB (fastest, wipes packs)
 ```bash
-cd /opt/mc-launcher/backend
-sudo docker compose down
-sudo rm mc_launcher.db
-sudo touch mc_launcher.db
-sudo docker compose up -d --build
-```
-
-## Option 2 — In-place migration (keeps data)
-```bash
-sudo docker compose exec api sqlite3 /app/mc_launcher.db <<SQL
-ALTER TABLE modpack ADD COLUMN default_server_ip TEXT DEFAULT '';
-ALTER TABLE modpack ADD COLUMN default_server_port INTEGER DEFAULT 25565;
-SQL
+sudo docker compose exec api python -c "
+import sqlite3
+conn = sqlite3.connect('/app/mc_launcher.db')
+conn.execute('''
+CREATE TABLE IF NOT EXISTS modpackserver (
+    id VARCHAR PRIMARY KEY NOT NULL,
+    pack_id VARCHAR NOT NULL,
+    name VARCHAR NOT NULL,
+    host VARCHAR NOT NULL,
+    port INTEGER NOT NULL DEFAULT 25565,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL,
+    FOREIGN KEY (pack_id) REFERENCES modpack (id)
+)
+''')
+try:
+    conn.execute('ALTER TABLE modpack DROP COLUMN default_server_ip')
+    conn.execute('ALTER TABLE modpack DROP COLUMN default_server_port')
+    print('Dropped old default_server columns')
+except Exception as e:
+    print(f'Old columns already gone or drop unsupported: {e}')
+conn.commit()
+print('Migration complete')
+"
 sudo docker compose restart api
 ```
 
-Go with Option 2 if you have packs you want to keep.
+## Register the new route in main.py
+
+Edit `/opt/mc-launcher/backend/app/main.py`:
+
+1. Add import near top:
+```python
+from app.routes import servers
+```
+
+2. Register router:
+```python
+app.include_router(servers.router)
+```
