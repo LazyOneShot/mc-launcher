@@ -233,6 +233,8 @@ class Report(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     pack_id: str = Field(foreign_key="modpack.id", index=True)
     pack_name: str
+    reported_uuid: Optional[str] = None       # set when this is a report about a specific member, not the pack itself
+    reported_username: str = ""
     reporter_uuid: str
     reporter_username: str
     reason: str
@@ -244,6 +246,8 @@ class ReportRead(SQLModel):
     id: str
     pack_id: str
     pack_name: str
+    reported_uuid: Optional[str] = None
+    reported_username: str = ""
     reporter_uuid: str
     reporter_username: str
     reason: str

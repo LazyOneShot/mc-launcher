@@ -102,6 +102,8 @@ export interface Report {
   id: string
   pack_id: string
   pack_name: string
+  reported_uuid?: string
+  reported_username?: string
   reporter_uuid: string
   reporter_username: string
   reason: string

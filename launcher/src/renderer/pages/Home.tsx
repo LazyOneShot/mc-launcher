@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { ModpackMeta, MyJoinRequest } from '../../shared/types'
+import ReportModal from '../components/ReportModal'
 
 const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
   owner: { bg: '#3b0764', color: '#c084fc' },
@@ -16,6 +17,7 @@ export default function Home() {
   const [joinMsg, setJoinMsg] = useState('')
   const [session, setSession] = useState<any>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [reportPack, setReportPack] = useState<ModpackMeta | null>(null)
   const nav = useNavigate()
 
   useEffect(() => {
@@ -106,9 +108,13 @@ export default function Home() {
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = '#22243d'}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8 }}>
                 <h3 style={{ marginBottom:6, fontSize:16 }}>{pack.name}</h3>
-                {pack.my_role && (
-                  <span className="badge" style={{ background:roleStyle.bg, color:roleStyle.color, flexShrink:0 }}>{pack.my_role}</span>
-                )}
+                <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+                  {pack.my_role && (
+                    <span className="badge" style={{ background:roleStyle.bg, color:roleStyle.color }}>{pack.my_role}</span>
+                  )}
+                  <button className="icon-btn" title="Report this pack"
+                    onClick={e => { e.stopPropagation(); setReportPack(pack) }}>⚑</button>
+                </div>
               </div>
               <p style={{ color:'#8888aa', fontSize:13 }}>{pack.mc_version} • {pack.loader}</p>
               {pack.description && <p style={{ color:'#6b6b8a', fontSize:12, marginTop:6 }}>{pack.description}</p>}
@@ -127,6 +133,14 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {reportPack && (
+        <ReportModal
+          title={`Report "${reportPack.name}"`}
+          onSubmit={reason => window.api.reportPack(reportPack.id, reason)}
+          onClose={() => setReportPack(null)}
+        />
+      )}
     </div>
   )
 }

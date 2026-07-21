@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import type { ModpackFull, ModpackServer, AuditEntry, JoinRequest } from '../../shared/types'
 import ModrinthBrowser from '../components/ModrinthBrowser'
 import UpdateChecker from '../components/UpdateChecker'
+import ReportModal from '../components/ReportModal'
 
 interface Member {
   id: string
@@ -97,6 +98,7 @@ export default function PackDetail() {
   const [serverError, setServerError] = useState('')
   const [showModrinth, setShowModrinth] = useState(false)
   const [showUpdates, setShowUpdates] = useState(false)
+  const [reportTarget, setReportTarget] = useState<{ kind: 'pack' } | { kind: 'member'; uuid: string; name: string } | null>(null)
   const [downloading, setDownloading] = useState<string | null>(null)
   const [selectedMods, setSelectedMods] = useState<Set<string>>(new Set())
   const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; filename: string } | null>(null)
@@ -266,12 +268,13 @@ export default function PackDetail() {
     nav('/home')
   }
 
-  const handleReportPack = async () => {
-    if (!id) return
-    const reason = prompt(`Report "${pack?.name}" — what's wrong with it?`)
-    if (!reason || !reason.trim()) return
-    await window.api.reportPack(id, reason.trim())
-    alert('Reported. Thanks for flagging it.')
+  const submitReport = async (reason: string) => {
+    if (!id || !reportTarget) return
+    if (reportTarget.kind === 'pack') {
+      await window.api.reportPack(id, reason)
+    } else {
+      await window.api.reportMember(id, reportTarget.uuid, reason)
+    }
   }
 
   const handleAddServer = async () => {
@@ -369,6 +372,7 @@ export default function PackDetail() {
               onClick={() => navigator.clipboard.writeText(pack.id)}>⧉</button>
           </p>
         </div>
+        <button onClick={() => setReportTarget({ kind: 'pack' })} className="icon-btn" title="Report this pack">⚑</button>
       </div>
 
       <div className="action-bar" style={{ flexWrap:'wrap' }}>
@@ -617,6 +621,10 @@ export default function PackDetail() {
               </span>
               <span className="badge" style={{ background:'#3b0764', color:'#c084fc' }}>owner</span>
             </div>
+            {!isOwner && pack.owner && (
+              <button className="icon-btn" title="Report this player"
+                onClick={() => setReportTarget({ kind: 'member', uuid: pack.owner, name: pack.owner_username || 'the owner' })}>⚑</button>
+            )}
           </div>
 
           {members.length === 0 && !isOwner && (
@@ -629,22 +637,28 @@ export default function PackDetail() {
                 <span style={{ fontWeight:600 }}>{mem.minecraft_username}</span>
                 <span className="badge">{mem.role}</span>
               </div>
-              {isOwner && (
-                <div style={{ display:'flex', gap:6 }}>
-                  {mem.role === 'viewer' ? (
-                    <button onClick={() => handleChangeRole(mem.minecraft_uuid, 'editor')}
-                      className="btn btn-success" style={{ padding:'6px 12px', fontSize:12 }}>Promote to Editor</button>
-                  ) : (
-                    <>
-                      <button onClick={() => handleChangeRole(mem.minecraft_uuid, 'viewer')}
-                        className="btn btn-secondary" style={{ padding:'6px 12px', fontSize:12 }}>Demote to Viewer</button>
-                      <button onClick={() => handleTransfer(mem.minecraft_uuid, mem.minecraft_username)}
-                        className="btn btn-warning" style={{ padding:'6px 12px', fontSize:12 }}>Transfer Ownership</button>
-                    </>
-                  )}
-                  <button onClick={() => handleRemoveMember(mem.minecraft_uuid)} className="icon-btn">✕</button>
-                </div>
-              )}
+              <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                {isOwner && (
+                  <>
+                    {mem.role === 'viewer' ? (
+                      <button onClick={() => handleChangeRole(mem.minecraft_uuid, 'editor')}
+                        className="btn btn-success" style={{ padding:'6px 12px', fontSize:12 }}>Promote to Editor</button>
+                    ) : (
+                      <>
+                        <button onClick={() => handleChangeRole(mem.minecraft_uuid, 'viewer')}
+                          className="btn btn-secondary" style={{ padding:'6px 12px', fontSize:12 }}>Demote to Viewer</button>
+                        <button onClick={() => handleTransfer(mem.minecraft_uuid, mem.minecraft_username)}
+                          className="btn btn-warning" style={{ padding:'6px 12px', fontSize:12 }}>Transfer Ownership</button>
+                      </>
+                    )}
+                    <button onClick={() => handleRemoveMember(mem.minecraft_uuid)} className="icon-btn">✕</button>
+                  </>
+                )}
+                {session && mem.minecraft_uuid !== session.minecraft_uuid && (
+                  <button className="icon-btn" title="Report this player"
+                    onClick={() => setReportTarget({ kind: 'member', uuid: mem.minecraft_uuid, name: mem.minecraft_username })}>⚑</button>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -799,10 +813,6 @@ export default function PackDetail() {
               <button onClick={handleLeave} className="btn btn-danger">Leave Modpack</button>
             </div>
           )}
-
-          <button onClick={handleReportPack} className="btn btn-secondary" style={{ alignSelf:'flex-start' }}>
-            ⚑ Report this pack
-          </button>
         </div>
       )}
 
@@ -822,6 +832,14 @@ export default function PackDetail() {
           packId={pack.id}
           onClose={() => setShowUpdates(false)}
           onApplied={refreshPack}
+        />
+      )}
+
+      {reportTarget && (
+        <ReportModal
+          title={reportTarget.kind === 'pack' ? `Report "${pack.name}"` : `Report ${reportTarget.name}`}
+          onSubmit={submitReport}
+          onClose={() => setReportTarget(null)}
         />
       )}
     </div>

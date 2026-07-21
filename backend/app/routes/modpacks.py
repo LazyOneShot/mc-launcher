@@ -311,6 +311,39 @@ def report_pack(request: Request, pack_id: str, body: ReportCreate, user=Depends
     return {"ok": True}
 
 
+@router.post("/{pack_id}/members/{member_uuid}/report")
+@limiter.limit("5/minute")
+def report_member(request: Request, pack_id: str, member_uuid: str, body: ReportCreate, user=Depends(current_user), session: Session = Depends(get_session)):
+    pack = session.get(Modpack, pack_id)
+    if not pack:
+        raise HTTPException(404, "Modpack not found")
+    if not body.reason.strip():
+        raise HTTPException(400, "A reason is required")
+
+    if member_uuid == pack.owner:
+        reported_username = pack.owner_username
+    else:
+        member = session.exec(select(ModpackMember).where(
+            ModpackMember.pack_id == pack_id,
+            ModpackMember.minecraft_uuid == member_uuid,
+        )).first()
+        if not member:
+            raise HTTPException(404, "That player is not a member of this pack")
+        reported_username = member.minecraft_username
+
+    session.add(Report(
+        pack_id=pack_id,
+        pack_name=pack.name,
+        reported_uuid=member_uuid,
+        reported_username=reported_username,
+        reporter_uuid=user["uuid"],
+        reporter_username=user["name"],
+        reason=body.reason.strip(),
+    ))
+    session.commit()
+    return {"ok": True}
+
+
 @router.post("/{pack_id}/mods", response_model=ModRead)
 @limiter.limit("30/minute")
 async def add_mod(request: Request, pack_id: str, file: UploadFile = File(...), user=Depends(current_user), session: Session = Depends(get_session)):

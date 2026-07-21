@@ -45,6 +45,14 @@ export default function AdminPanel() {
     setReports(rr => rr.filter(x => x.id !== r.id))
   }
 
+  const handleBanFromReport = async (r: Report) => {
+    if (!r.reported_username) return
+    if (!confirm(`Ban ${r.reported_username}?\n\nReason: "${r.reason}"`)) return
+    await window.api.banUser(r.reported_username, r.reason)
+    await window.api.resolveReport(r.id)
+    setReports(rr => rr.filter(x => x.id !== r.id))
+  }
+
   const handleBan = async () => {
     if (!banUsername.trim()) return
     setError('')
@@ -101,15 +109,33 @@ export default function AdminPanel() {
             <div key={r.id} className="card" style={{ marginBottom:12 }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                 <div>
-                  <h3 style={{ fontSize:15, marginBottom:4 }}>{r.pack_name}</h3>
-                  <p style={{ color:'#8888aa', fontSize:12 }}>Reported by {r.reporter_username}</p>
+                  {r.reported_username ? (
+                    <>
+                      <h3 style={{ fontSize:15, marginBottom:4 }}>
+                        <span className="badge" style={{ background:'#3b0e0e', color:'#f87171', marginRight:8 }}>player</span>
+                        {r.reported_username}
+                      </h3>
+                      <p style={{ color:'#8888aa', fontSize:12 }}>in "{r.pack_name}" — reported by {r.reporter_username}</p>
+                    </>
+                  ) : (
+                    <>
+                      <h3 style={{ fontSize:15, marginBottom:4 }}>
+                        <span className="badge" style={{ marginRight:8 }}>pack</span>
+                        {r.pack_name}
+                      </h3>
+                      <p style={{ color:'#8888aa', fontSize:12 }}>Reported by {r.reporter_username}</p>
+                    </>
+                  )}
                   <p style={{ color:'#e0e0e0', fontSize:13, marginTop:8 }}>{r.reason}</p>
                 </div>
                 <span style={{ color:'#4a4a63', fontSize:11 }}>{new Date(r.created_at.endsWith('Z') ? r.created_at : r.created_at + 'Z').toLocaleString()}</span>
               </div>
-              <div style={{ display:'flex', gap:8, marginTop:12 }}>
+              <div style={{ display:'flex', gap:8, marginTop:12, flexWrap:'wrap' }}>
                 <button onClick={() => handleDismiss(r)} className="btn btn-secondary" style={{ padding:'6px 12px', fontSize:12 }}>Dismiss</button>
-                <button onClick={() => handleForcePrivate(r)} className="btn btn-warning" style={{ padding:'6px 12px', fontSize:12 }}>Make Private</button>
+                {r.reported_username && (
+                  <button onClick={() => handleBanFromReport(r)} className="btn btn-danger" style={{ padding:'6px 12px', fontSize:12 }}>Ban Player</button>
+                )}
+                <button onClick={() => handleForcePrivate(r)} className="btn btn-warning" style={{ padding:'6px 12px', fontSize:12 }}>Make Pack Private</button>
                 <button onClick={() => handleForceDelete(r)} className="btn btn-danger" style={{ padding:'6px 12px', fontSize:12 }}>Delete Pack</button>
                 <button onClick={() => handleResolve(r)} className="btn btn-success" style={{ padding:'6px 12px', fontSize:12 }}>Mark Resolved</button>
               </div>

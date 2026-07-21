@@ -70,4 +70,9 @@ export function adminHandlers() {
     await axios.post(`${API}/modpacks/${packId}/report`, { reason }, { headers: authHeader() })
     return true
   })
+
+  ipcMain.handle('modpacks:reportMember', async (_e, packId: string, memberUuid: string, reason: string) => {
+    await axios.post(`${API}/modpacks/${packId}/members/${memberUuid}/report`, { reason }, { headers: authHeader() })
+    return true
+  })
 }

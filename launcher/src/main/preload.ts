@@ -60,6 +60,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // Reporting
   reportPack:         (packId: string, reason: string)      => ipcRenderer.invoke('modpacks:reportPack', packId, reason),
+  reportMember:       (packId: string, memberUuid: string, reason: string) => ipcRenderer.invoke('modpacks:reportMember', packId, memberUuid, reason),
 
   // Admin
   checkAdminAccess:   ()                                    => ipcRenderer.invoke('admin:checkAccess'),
