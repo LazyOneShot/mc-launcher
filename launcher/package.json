@@ -24,7 +24,7 @@
     "minecraft-launcher-core": "^3.18.2",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
-    "react-router-dom": "^6.23.0"
+    "react-router-dom": "^7.18.1"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
