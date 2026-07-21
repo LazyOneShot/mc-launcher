@@ -13,6 +13,11 @@ export default function Home() {
   useEffect(() => {
     window.api.listMyModpacks().then(setPacks)
     window.api.getSession().then(setSession)
+    // Picks up newly-approved join requests and role changes without a restart.
+    const interval = setInterval(() => {
+      window.api.listMyModpacks().then(setPacks)
+    }, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   const handleJoin = async () => {
