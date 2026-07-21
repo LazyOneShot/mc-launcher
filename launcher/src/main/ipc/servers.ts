@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
 import axios from 'axios'
 import Store from 'electron-store'
+import { status } from 'minecraft-server-util'
 import type { AuthTokens } from '../../shared/types'
 
 const store = new Store<{ tokens: AuthTokens }>()
@@ -39,5 +40,14 @@ export function serverHandlers() {
   ipcMain.handle('servers:delete', async (_e, packId: string, serverId: string) => {
     await axios.delete(`${API}/modpacks/${packId}/servers/${serverId}`, { headers: authHeader() })
     return true
+  })
+
+  ipcMain.handle('servers:ping', async (_e, host: string, port: number) => {
+    try {
+      const res = await status(host, port, { timeout: 3000 })
+      return { online: true, players: { online: res.players.online, max: res.players.max } }
+    } catch {
+      return { online: false }
+    }
   })
 }

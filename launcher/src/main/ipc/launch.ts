@@ -35,6 +35,10 @@ function progress(win: BrowserWindow | null, msg: string) {
   win?.webContents.send('launch:progress', msg)
 }
 
+function syncProgress(win: BrowserWindow | null, current: number, total: number, filename: string) {
+  win?.webContents.send('launch:syncProgress', { current, total, filename })
+}
+
 interface LaunchOptions {
   min_ram: string; max_ram: string; jvm_args: string; java_path: string
 }
@@ -87,9 +91,10 @@ export function launchHandlers() {
       }
     }
 
+    const toDownload = Array.from(remoteMap.entries()).filter(([filename, mod]) => localHashes.get(filename) !== mod.sha256)
     let downloaded = 0
-    for (const [filename, mod] of remoteMap) {
-      if (localHashes.get(filename) === mod.sha256) continue
+    for (const [filename, mod] of toDownload) {
+      syncProgress(win, downloaded, toDownload.length, filename)
       progress(win, `Downloading ${filename}`)
       const res = await axios.get(mod.download_url, { responseType: 'stream' })
       await new Promise<void>((resolve, reject) => {
@@ -97,6 +102,7 @@ export function launchHandlers() {
         res.data.pipe(w); w.on('finish', () => resolve()); w.on('error', reject)
       })
       downloaded++
+      syncProgress(win, downloaded, toDownload.length, filename)
     }
     if (downloaded > 0) progress(win, `Downloaded ${downloaded} mods`)
 

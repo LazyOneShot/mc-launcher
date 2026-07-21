@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('api', {
   listJoinRequests:   (packId: string)                      => ipcRenderer.invoke('modpacks:listJoinRequests', packId),
   approveJoinRequest: (packId: string, requestId: string)   => ipcRenderer.invoke('modpacks:approveJoinRequest', packId, requestId),
   denyJoinRequest:    (packId: string, requestId: string)   => ipcRenderer.invoke('modpacks:denyJoinRequest', packId, requestId),
+  listMyJoinRequests: ()                                    => ipcRenderer.invoke('modpacks:listMyJoinRequests'),
+  cancelJoinRequest:  (packId: string)                      => ipcRenderer.invoke('modpacks:cancelJoinRequest', packId),
   uploadMod:          (packId: string, fp: string)          => ipcRenderer.invoke('modpacks:uploadMod', packId, fp),
   uploadModsBulk:     (packId: string, fps: string[])       => ipcRenderer.invoke('modpacks:uploadModsBulk', packId, fps),
   onBulkUploadProgress: (cb: (d: any) => void)              => ipcRenderer.on('modpacks:bulkProgress', (_e, d) => cb(d)),
@@ -44,6 +46,7 @@ contextBridge.exposeInMainWorld('api', {
   addServer:          (packId: string, server: object)      => ipcRenderer.invoke('servers:add', packId, server),
   updateServer:       (packId: string, id: string, patch: object) => ipcRenderer.invoke('servers:update', packId, id, patch),
   deleteServer:       (packId: string, id: string)          => ipcRenderer.invoke('servers:delete', packId, id),
+  pingServer:         (host: string, port: number)           => ipcRenderer.invoke('servers:ping', host, port),
 
   // Modrinth
   modrinthSearch:     (q: string, mc: string, loader: string, offset?: number)            => ipcRenderer.invoke('modrinth:search', q, mc, loader, offset || 0),
@@ -63,6 +66,7 @@ contextBridge.exposeInMainWorld('api', {
   // Launch
   syncAndLaunch:      (packId: string, extras?: object)     => ipcRenderer.invoke('launch:syncAndLaunch', packId, extras || {}),
   onLaunchProgress:   (cb: (msg: string) => void)           => ipcRenderer.on('launch:progress', (_e, msg) => cb(msg)),
+  onSyncProgress:     (cb: (d: any) => void)                => ipcRenderer.on('launch:syncProgress', (_e, d) => cb(d)),
 
   // Updater
   checkForUpdate:     ()                                    => ipcRenderer.invoke('update:check'),

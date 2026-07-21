@@ -76,6 +76,16 @@ export function modpackHandlers() {
     return true
   })
 
+  ipcMain.handle('modpacks:listMyJoinRequests', async () => {
+    const { data } = await axios.get(`${API}/modpacks/requests/mine`, { headers: authHeader() })
+    return data
+  })
+
+  ipcMain.handle('modpacks:cancelJoinRequest', async (_e, packId: string) => {
+    await axios.delete(`${API}/modpacks/${packId}/join-requests/mine`, { headers: authHeader() })
+    return true
+  })
+
   ipcMain.handle('modpacks:uploadMod', async (_e, packId: string, filePath: string) => {
     const form = new FormData()
     form.append('file', fs.createReadStream(filePath))

@@ -65,6 +65,13 @@ class JoinRequestRead(SQLModel):
     created_at: datetime
 
 
+class MyJoinRequestRead(SQLModel):
+    id: str
+    pack_id: str
+    pack_name: str
+    created_at: datetime
+
+
 class ChangeRoleRequest(SQLModel):
     role: str
 
@@ -193,3 +200,8 @@ class PublicModpackRead(SQLModel):
     loader: str
     owner_username: str
     join_mode: str
+
+
+class ModpackWithRole(ModpackRead):
+    my_role: str
+    pending_request_count: int = 0

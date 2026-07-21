@@ -8,6 +8,7 @@ export default function BrowsePacks() {
   const [loaded, setLoaded] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [msgs, setMsgs] = useState<Record<string, string>>({})
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     window.api.listPublicModpacks().then((rows: PublicPack[]) => {
@@ -36,10 +37,17 @@ export default function BrowsePacks() {
     <div className="page">
       <button onClick={() => nav('/home')} className="back-link">← Back</button>
       <h1 style={{ marginBottom:8, fontSize:24 }}>Browse Public Packs</h1>
-      <p style={{ color:'#8888aa', fontSize:13, marginBottom:24 }}>Packs anyone can find and join, without needing the pack ID.</p>
+      <p style={{ color:'#8888aa', fontSize:13, marginBottom:16 }}>Packs anyone can find and join, without needing the pack ID.</p>
+
+      <input className="input" style={{ marginBottom:20 }} placeholder="Search by name or description..."
+        value={search} onChange={e => setSearch(e.target.value)} />
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:12 }}>
-        {packs.map(pack => (
+        {packs.filter(p =>
+          !search.trim() ||
+          p.name.toLowerCase().includes(search.toLowerCase()) ||
+          p.description.toLowerCase().includes(search.toLowerCase())
+        ).map(pack => (
           <div key={pack.id} className="card">
             <h3 style={{ marginBottom:6, fontSize:16 }}>{pack.name}</h3>
             <p style={{ color:'#8888aa', fontSize:13 }}>{pack.mc_version} • {pack.loader}</p>
@@ -58,6 +66,13 @@ export default function BrowsePacks() {
         {loaded && packs.length === 0 && (
           <div style={{ gridColumn:'1 / -1', textAlign:'center', padding:40, color:'#6b6b8a' }}>
             No public packs right now.
+          </div>
+        )}
+        {loaded && packs.length > 0 && search.trim() && !packs.some(p =>
+          p.name.toLowerCase().includes(search.toLowerCase()) || p.description.toLowerCase().includes(search.toLowerCase())
+        ) && (
+          <div style={{ gridColumn:'1 / -1', textAlign:'center', padding:40, color:'#6b6b8a' }}>
+            No packs match "{search}".
           </div>
         )}
       </div>

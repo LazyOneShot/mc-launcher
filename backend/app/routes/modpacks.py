@@ -5,9 +5,9 @@ import hashlib
 import httpx
 
 from app.models.modpack import (
-    Modpack, ModpackCreate, ModpackRead, ModpackUpdate, PublicModpackRead,
+    Modpack, ModpackCreate, ModpackRead, ModpackUpdate, ModpackWithRole, PublicModpackRead,
     Mod, ModRead, ModpackMember, ModpackMemberRead, ModpackServer, AuditLog,
-    JoinRequest, JoinRequestRead,
+    JoinRequest, JoinRequestRead, MyJoinRequestRead,
 )
 from app.middleware.auth import current_user
 from app.storage.minio import upload_mod, delete_mod, presigned_url
@@ -50,21 +50,42 @@ def can_edit(pack: Modpack, user: dict, session: Session) -> bool:
     return user_role(pack, user, session) in ("owner", "editor")
 
 
-@router.get("/mine", response_model=list[ModpackRead])
+@router.get("/mine", response_model=list[ModpackWithRole])
 def list_mine(user=Depends(current_user), session: Session = Depends(get_session)):
     owned = session.exec(select(Modpack).where(Modpack.owner == user["uuid"])).all()
     memberships = session.exec(select(ModpackMember).where(
         ModpackMember.minecraft_uuid == user["uuid"]
     )).all()
+    role_by_pack_id = {m.pack_id: m.role for m in memberships}
     member_packs = [session.get(Modpack, m.pack_id) for m in memberships]
     member_packs = [p for p in member_packs if p]
     all_packs = {p.id: p for p in list(owned) + member_packs}
-    return list(all_packs.values())
+
+    result = []
+    for pack in all_packs.values():
+        is_owner = pack.owner == user["uuid"]
+        role = "owner" if is_owner else role_by_pack_id.get(pack.id, "viewer")
+        pending = 0
+        if is_owner and pack.join_mode == "request":
+            pending = len(session.exec(select(JoinRequest).where(JoinRequest.pack_id == pack.id)).all())
+        result.append(ModpackWithRole(**pack.dict(), my_role=role, pending_request_count=pending))
+    return result
 
 
 @router.get("/public", response_model=list[PublicModpackRead])
 def list_public(session: Session = Depends(get_session)):
     return session.exec(select(Modpack).where(Modpack.visibility == "public")).all()
+
+
+@router.get("/requests/mine", response_model=list[MyJoinRequestRead])
+def list_my_join_requests(user=Depends(current_user), session: Session = Depends(get_session)):
+    reqs = session.exec(select(JoinRequest).where(JoinRequest.minecraft_uuid == user["uuid"])).all()
+    result = []
+    for r in reqs:
+        pack = session.get(Modpack, r.pack_id)
+        if pack:
+            result.append(MyJoinRequestRead(id=r.id, pack_id=r.pack_id, pack_name=pack.name, created_at=r.created_at))
+    return result
 
 
 async def _backfill_owner_username(pack: Modpack, session: Session):
@@ -191,6 +212,19 @@ def deny_join_request(pack_id: str, request_id: str, user=Depends(current_user),
         raise HTTPException(404, "Join request not found")
 
     log_action(session, pack_id, user, "member.deny", target=req.minecraft_username)
+    session.delete(req)
+    session.commit()
+    return {"ok": True}
+
+
+@router.delete("/{pack_id}/join-requests/mine")
+def cancel_my_join_request(pack_id: str, user=Depends(current_user), session: Session = Depends(get_session)):
+    req = session.exec(select(JoinRequest).where(
+        JoinRequest.pack_id == pack_id,
+        JoinRequest.minecraft_uuid == user["uuid"],
+    )).first()
+    if not req:
+        raise HTTPException(404, "No pending request found")
     session.delete(req)
     session.commit()
     return {"ok": True}

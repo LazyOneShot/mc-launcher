@@ -20,6 +20,15 @@ export interface ModpackMeta {
   join_mode: 'open' | 'request'
   created_at: string
   updated_at: string
+  my_role?: string
+  pending_request_count?: number
+}
+
+export interface MyJoinRequest {
+  id: string
+  pack_id: string
+  pack_name: string
+  created_at: string
 }
 
 export interface PublicPack {

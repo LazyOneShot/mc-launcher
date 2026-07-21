@@ -74,6 +74,7 @@ export default function PackDetail() {
   const [pack, setPack] = useState<ModpackFull | null>(null)
   const [members, setMembers] = useState<Member[]>([])
   const [servers, setServers] = useState<ModpackServer[]>([])
+  const [serverStatus, setServerStatus] = useState<Record<string, { online: boolean; players?: { online: number; max: number } }>>({})
   const [audit, setAudit] = useState<AuditEntry[]>([])
   const [auditLoaded, setAuditLoaded] = useState(false)
   const [log, setLog] = useState<string[]>([])
@@ -97,6 +98,8 @@ export default function PackDetail() {
   const [showModrinth, setShowModrinth] = useState(false)
   const [showUpdates, setShowUpdates] = useState(false)
   const [downloading, setDownloading] = useState<string | null>(null)
+  const [selectedMods, setSelectedMods] = useState<Set<string>>(new Set())
+  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number; filename: string } | null>(null)
   const logRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -110,6 +113,7 @@ export default function PackDetail() {
     window.api.getSession().then(setSession)
     window.api.getLaunchOptions(id).then((opts: LaunchOptions | null) => { if (opts) setLaunchOpts(opts) })
     window.api.onLaunchProgress((msg: string) => setLog(l => [...l, msg]))
+    window.api.onSyncProgress((d: any) => setSyncProgress(d))
     window.api.onBulkUploadProgress((p: BulkProgress) => setBulkProgress(p))
     window.api.getMcVersions().then((vs: string[]) => { if (vs?.length > 0) setMcVersions(vs) })
   }, [id])
@@ -143,6 +147,16 @@ export default function PackDetail() {
   const myRole = isOwner ? 'owner' : myMembership?.role || 'viewer'
   const canEdit = myRole === 'owner' || myRole === 'editor'
 
+  // Ping each server whenever the tab is opened (including switching back to it).
+  useEffect(() => {
+    if (tab !== 'servers') return
+    servers.forEach(s => {
+      window.api.pingServer(s.host, s.port).then((res: any) => {
+        setServerStatus(prev => ({ ...prev, [s.id]: res }))
+      })
+    })
+  }, [tab, servers])
+
   // Only fetch the log when the tab is actually opened.
   useEffect(() => {
     if (tab !== 'activity' || !id || !canEdit || auditLoaded) return
@@ -169,14 +183,43 @@ export default function PackDetail() {
 
   const handleLaunch = async (server?: ModpackServer) => {
     if (!id) return
-    setLaunching(true); setLog([])
+    setLaunching(true); setLog([]); setSyncProgress(null)
     try {
       const extras = server ? { serverHost: server.host, serverPort: server.port } : {}
       await window.api.syncAndLaunch(id, extras)
     } catch (e: any) {
       setLog(l => [...l, `Error: ${e.message || e}`])
     }
+    setSyncProgress(null)
     setLaunching(false)
+  }
+
+  const handleRemoveMod = async (modId: string, filename: string) => {
+    if (!id || !confirm(`Remove "${filename}" from this pack?`)) return
+    await window.api.removeMod(id, modId)
+    setPack(p => p ? { ...p, mods: p.mods.filter(m => m.id !== modId) } : p)
+    setSelectedMods(s => { const next = new Set(s); next.delete(modId); return next })
+    setAuditLoaded(false)
+  }
+
+  const handleRemoveSelected = async () => {
+    if (!id || selectedMods.size === 0) return
+    if (!confirm(`Remove ${selectedMods.size} mod${selectedMods.size === 1 ? '' : 's'} from this pack?`)) return
+    const ids = Array.from(selectedMods)
+    for (const modId of ids) {
+      await window.api.removeMod(id, modId)
+    }
+    setPack(p => p ? { ...p, mods: p.mods.filter(m => !selectedMods.has(m.id)) } : p)
+    setSelectedMods(new Set())
+    setAuditLoaded(false)
+  }
+
+  const toggleModSelected = (modId: string) => {
+    setSelectedMods(s => {
+      const next = new Set(s)
+      if (next.has(modId)) next.delete(modId); else next.add(modId)
+      return next
+    })
   }
 
   const handleUpload = async () => {
@@ -312,7 +355,11 @@ export default function PackDetail() {
             <span className="badge" style={{ marginLeft:8 }}>{myRole}</span>
           </p>
           {pack.description && <p style={{ color:'#8888aa', fontSize:13, marginTop:4, marginBottom:6 }}>{pack.description}</p>}
-          <p className="pack-id">Pack ID: <strong>{pack.id}</strong></p>
+          <p className="pack-id">
+            Pack ID: <strong>{pack.id}</strong>
+            <button className="icon-btn" title="Copy pack ID" style={{ marginLeft:6, padding:'2px 4px' }}
+              onClick={() => navigator.clipboard.writeText(pack.id)}>⧉</button>
+          </p>
         </div>
       </div>
 
@@ -327,6 +374,23 @@ export default function PackDetail() {
           </button>
         ))}
       </div>
+
+      {syncProgress && syncProgress.total > 0 && syncProgress.current < syncProgress.total && (
+        <div style={{ marginBottom:12, padding:'10px 14px', background:'#0d0e1e', border:'1px solid #22243d', borderRadius:8 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:6 }}>
+            <span style={{ color:'#a5b4fc' }}>
+              Syncing mods — {syncProgress.current} of {syncProgress.total} — {syncProgress.filename}
+            </span>
+            <span style={{ color:'#6b6b8a' }}>{Math.round((syncProgress.current / syncProgress.total) * 100)}%</span>
+          </div>
+          <div style={{ width:'100%', height:6, background:'#22243d', borderRadius:3, overflow:'hidden' }}>
+            <div style={{
+              width: `${(syncProgress.current / syncProgress.total) * 100}%`,
+              height:'100%', background:'#4a7ce8', transition:'width 0.3s'
+            }} />
+          </div>
+        </div>
+      )}
 
       {log.length > 0 && (
         <div className="log-console" ref={logRef} style={{ marginBottom:24 }}>
@@ -369,6 +433,11 @@ export default function PackDetail() {
                 <button onClick={handleUpload} disabled={bulkProgress?.status === 'uploading'} className="btn btn-primary">
                   {bulkProgress?.status === 'uploading' ? 'Uploading...' : '+ Upload'}
                 </button>
+                {selectedMods.size > 0 && (
+                  <button onClick={handleRemoveSelected} className="btn btn-danger">
+                    Remove Selected ({selectedMods.size})
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -397,10 +466,24 @@ export default function PackDetail() {
             </div>
           )}
 
+          {canEdit && filteredMods.length > 0 && (
+            <label style={{ display:'flex', alignItems:'center', gap:6, marginBottom:8, fontSize:12, color:'#8888aa', cursor:'pointer' }}>
+              <input type="checkbox"
+                checked={filteredMods.every(m => selectedMods.has(m.id))}
+                onChange={e => setSelectedMods(e.target.checked ? new Set(filteredMods.map(m => m.id)) : new Set())} />
+              Select all
+            </label>
+          )}
+
           <div className="mod-list-container">
             {filteredMods.map(mod => (
               <div key={mod.id} className="mod-row">
-                <span className="mod-filename">{mod.filename}</span>
+                <span className="mod-filename" style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  {canEdit && (
+                    <input type="checkbox" checked={selectedMods.has(mod.id)} onChange={() => toggleModSelected(mod.id)} />
+                  )}
+                  {mod.filename}
+                </span>
                 <div style={{ display:'flex', gap:10, alignItems:'center' }}>
                   <span style={{ color:'#6b6b8a', fontSize:11 }}>{(mod.size_bytes / 1024 / 1024).toFixed(1)} MB</span>
                   <button className="icon-btn" title="Download"
@@ -414,11 +497,7 @@ export default function PackDetail() {
                     }
                   </button>
                   {canEdit && (
-                    <button className="icon-btn" title="Remove"
-                      onClick={() => id && window.api.removeMod(id, mod.id).then(() => {
-                        setPack(p => p ? { ...p, mods: p.mods.filter(m => m.id !== mod.id) } : p)
-                        setAuditLoaded(false)
-                      })}>✕</button>
+                    <button className="icon-btn" title="Remove" onClick={() => handleRemoveMod(mod.id, mod.filename)}>✕</button>
                   )}
                 </div>
               </div>
@@ -468,17 +547,30 @@ export default function PackDetail() {
             </div>
           )}
 
-          {servers.map(s => (
-            <div key={s.id} className="member-row">
-              <div>
-                <span style={{ fontWeight:600 }}>{s.name}</span>
-                <span style={{ color:'#8888aa', fontSize:12, marginLeft:8, fontFamily:'Consolas, monospace' }}>
-                  {s.host}:{s.port}
-                </span>
+          {servers.map(s => {
+            const status = serverStatus[s.id]
+            return (
+              <div key={s.id} className="member-row">
+                <div>
+                  <span style={{ fontWeight:600 }}>{s.name}</span>
+                  <span style={{ color:'#8888aa', fontSize:12, marginLeft:8, fontFamily:'Consolas, monospace' }}>
+                    {s.host}:{s.port}
+                  </span>
+                  <button className="icon-btn" title="Copy address" style={{ marginLeft:4, padding:'2px 4px' }}
+                    onClick={() => navigator.clipboard.writeText(`${s.host}:${s.port}`)}>⧉</button>
+                  {status && (
+                    <span style={{
+                      marginLeft:10, fontSize:11, fontWeight:600,
+                      color: status.online ? '#4ade80' : '#6b6b8a'
+                    }}>
+                      ● {status.online ? `Online${status.players ? ` (${status.players.online}/${status.players.max})` : ''}` : 'Offline'}
+                    </span>
+                  )}
+                </div>
+                {canEdit && <button onClick={() => handleDeleteServer(s.id)} className="icon-btn">✕</button>}
               </div>
-              {canEdit && <button onClick={() => handleDeleteServer(s.id)} className="icon-btn">✕</button>}
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
