@@ -14,5 +14,6 @@ Thumbs.db
 .vscode/settings.json
 *.pem
 *.key
+.claude/settings.local.json
 
 backend/mc_launcher.db
