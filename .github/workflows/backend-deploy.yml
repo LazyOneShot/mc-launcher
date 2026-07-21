@@ -12,7 +12,7 @@ jobs:
     # so a self-hosted runner here can't be reached by an external PR.
     runs-on: [self-hosted, backend-deploy]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Sync backend source to deploy directory
         # No --delete: this only adds/updates files tracked in git. It never
