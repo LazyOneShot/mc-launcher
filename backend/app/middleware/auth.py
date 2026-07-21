@@ -48,6 +48,17 @@ def create_jwt(mc_uuid: str, mc_name: str) -> str:
 def current_user(creds: HTTPAuthorizationCredentials = Depends(bearer)) -> dict:
     try:
         payload = jwt.decode(creds.credentials, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
-        return {"uuid": payload["sub"], "name": payload["name"]}
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    # Every authenticated request passes through here, which makes this the
+    # one place a platform-wide ban can actually be enforced everywhere at once.
+    from sqlmodel import Session, select
+    from app.main import engine
+    from app.models.modpack import BannedUser
+    with Session(engine) as session:
+        banned = session.exec(select(BannedUser).where(BannedUser.minecraft_uuid == payload["sub"])).first()
+        if banned:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This account has been banned")
+
+    return {"uuid": payload["sub"], "name": payload["name"]}

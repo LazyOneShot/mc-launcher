@@ -18,7 +18,14 @@ class Settings(BaseSettings):
 
     enable_docs: bool = False
 
+    # Comma-separated Minecraft UUIDs allowed to call /admin/* routes.
+    admin_uuids: str = ""
+
     class Config:
         env_file = ".env"
 
 settings = Settings()
+
+
+def is_admin(uuid: str) -> bool:
+    return uuid in {u.strip() for u in settings.admin_uuids.split(",") if u.strip()}

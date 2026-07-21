@@ -12,6 +12,7 @@ import { auditHandlers } from './ipc/audit'
 import { downloadHandlers } from './ipc/downloads'
 import { updateHandlers } from './ipc/updater'
 import { versionHandlers } from './ipc/versions'
+import { adminHandlers } from './ipc/admin'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -130,6 +131,7 @@ if (!gotLock) {
     downloadHandlers()
     updateHandlers()
     versionHandlers()
+    adminHandlers()
     windowControlHandlers()
   })
 }

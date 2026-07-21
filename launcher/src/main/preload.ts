@@ -58,6 +58,20 @@ contextBridge.exposeInMainWorld('api', {
   // Audit
   getAudit:           (packId: string, limit?: number)      => ipcRenderer.invoke('audit:list', packId, limit || 100),
 
+  // Reporting
+  reportPack:         (packId: string, reason: string)      => ipcRenderer.invoke('modpacks:reportPack', packId, reason),
+
+  // Admin
+  checkAdminAccess:   ()                                    => ipcRenderer.invoke('admin:checkAccess'),
+  listBans:           ()                                    => ipcRenderer.invoke('admin:listBans'),
+  banUser:            (username: string, reason: string)    => ipcRenderer.invoke('admin:banUser', username, reason),
+  unbanUser:          (uuid: string)                        => ipcRenderer.invoke('admin:unbanUser', uuid),
+  listReports:        (status?: string)                     => ipcRenderer.invoke('admin:listReports', status || 'open'),
+  resolveReport:      (reportId: string)                    => ipcRenderer.invoke('admin:resolveReport', reportId),
+  dismissReport:      (reportId: string)                    => ipcRenderer.invoke('admin:dismissReport', reportId),
+  forcePrivatePack:   (packId: string)                      => ipcRenderer.invoke('admin:forcePrivatePack', packId),
+  forceDeletePack:    (packId: string)                       => ipcRenderer.invoke('admin:forceDeletePack', packId),
+
   // Versions
   getMcVersions:      ()                                    => ipcRenderer.invoke('versions:mc'),
   getForgeVersions:   (mc: string)                          => ipcRenderer.invoke('versions:forge', mc),

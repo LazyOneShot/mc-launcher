@@ -8,7 +8,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.config import settings
 from app.limiter import limiter
-from app.routes import auth, modpacks, members, servers, external, audit
+from app.routes import auth, modpacks, members, servers, external, audit, admin
 
 engine = create_engine(settings.database_url)
 
@@ -30,6 +30,7 @@ app.include_router(members.router)
 app.include_router(servers.router)
 app.include_router(external.router)
 app.include_router(audit.router)
+app.include_router(admin.router)
 
 
 @app.on_event("startup")

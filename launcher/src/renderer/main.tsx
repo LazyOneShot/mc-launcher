@@ -8,6 +8,7 @@ import Home from './pages/Home'
 import PackDetail from './pages/PackDetail'
 import CreatePack from './pages/CreatePack'
 import BrowsePacks from './pages/BrowsePacks'
+import AdminPanel from './pages/AdminPanel'
 import UpdateBanner from './components/UpdateBanner'
 import TitleBar from './components/TitleBar'
 import VersionBadge from './components/VersionBadge'
@@ -31,6 +32,7 @@ function App() {
           <Route path="/pack/:id" element={<PackDetail />} />
           <Route path="/create" element={<CreatePack />} />
           <Route path="/browse" element={<BrowsePacks />} />
+          <Route path="/admin" element={<AdminPanel />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

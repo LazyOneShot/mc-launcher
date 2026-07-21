@@ -205,3 +205,51 @@ class PublicModpackRead(SQLModel):
 class ModpackWithRole(ModpackRead):
     my_role: str
     pending_request_count: int = 0
+
+
+class BannedUser(SQLModel, table=True):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    minecraft_uuid: str = Field(index=True, unique=True)
+    minecraft_username: str
+    reason: str = ""
+    banned_by: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class BannedUserRead(SQLModel):
+    id: str
+    minecraft_uuid: str
+    minecraft_username: str
+    reason: str
+    created_at: datetime
+
+
+class BanRequest(SQLModel):
+    minecraft_username: str
+    reason: str = ""
+
+
+class Report(SQLModel, table=True):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    pack_id: str = Field(foreign_key="modpack.id", index=True)
+    pack_name: str
+    reporter_uuid: str
+    reporter_username: str
+    reason: str
+    status: str = "open"  # "open" | "resolved" | "dismissed"
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class ReportRead(SQLModel):
+    id: str
+    pack_id: str
+    pack_name: str
+    reporter_uuid: str
+    reporter_username: str
+    reason: str
+    status: str
+    created_at: datetime
+
+
+class ReportCreate(SQLModel):
+    reason: str

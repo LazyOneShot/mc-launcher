@@ -33,6 +33,17 @@ export default function BrowsePacks() {
     setBusyId(null)
   }
 
+  const handleReport = async (pack: PublicPack) => {
+    const reason = prompt(`Report "${pack.name}" — what's wrong with it?`)
+    if (!reason || !reason.trim()) return
+    try {
+      await window.api.reportPack(pack.id, reason.trim())
+      setMsgs(m => ({ ...m, [pack.id]: 'Reported. Thanks for flagging it.' }))
+    } catch (e: any) {
+      setMsgs(m => ({ ...m, [pack.id]: e?.response?.data?.detail || 'Failed to report' }))
+    }
+  }
+
   return (
     <div className="page">
       <button onClick={() => nav('/home')} className="back-link">← Back</button>
@@ -49,7 +60,10 @@ export default function BrowsePacks() {
           p.description.toLowerCase().includes(search.toLowerCase())
         ).map(pack => (
           <div key={pack.id} className="card">
-            <h3 style={{ marginBottom:6, fontSize:16 }}>{pack.name}</h3>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+              <h3 style={{ marginBottom:6, fontSize:16 }}>{pack.name}</h3>
+              <button className="icon-btn" title="Report this pack" onClick={() => handleReport(pack)}>⚑</button>
+            </div>
             <p style={{ color:'#8888aa', fontSize:13 }}>{pack.mc_version} • {pack.loader}</p>
             {pack.description && <p style={{ color:'#6b6b8a', fontSize:12, marginTop:8 }}>{pack.description}</p>}
             <p style={{ color:'#4a4a63', fontSize:11, marginTop:10 }}>by {pack.owner_username}</p>

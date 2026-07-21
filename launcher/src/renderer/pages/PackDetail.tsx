@@ -266,6 +266,14 @@ export default function PackDetail() {
     nav('/home')
   }
 
+  const handleReportPack = async () => {
+    if (!id) return
+    const reason = prompt(`Report "${pack?.name}" — what's wrong with it?`)
+    if (!reason || !reason.trim()) return
+    await window.api.reportPack(id, reason.trim())
+    alert('Reported. Thanks for flagging it.')
+  }
+
   const handleAddServer = async () => {
     if (!id || !newServer.name.trim() || !newServer.host.trim()) return
     setServerError('')
@@ -791,6 +799,10 @@ export default function PackDetail() {
               <button onClick={handleLeave} className="btn btn-danger">Leave Modpack</button>
             </div>
           )}
+
+          <button onClick={handleReportPack} className="btn btn-secondary" style={{ alignSelf:'flex-start' }}>
+            ⚑ Report this pack
+          </button>
         </div>
       )}
 

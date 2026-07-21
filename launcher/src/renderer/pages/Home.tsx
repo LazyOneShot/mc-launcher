@@ -15,12 +15,14 @@ export default function Home() {
   const [joinError, setJoinError] = useState('')
   const [joinMsg, setJoinMsg] = useState('')
   const [session, setSession] = useState<any>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const nav = useNavigate()
 
   useEffect(() => {
     window.api.listMyModpacks().then(setPacks)
     window.api.listMyJoinRequests().then(setMyRequests)
     window.api.getSession().then(setSession)
+    window.api.checkAdminAccess().then(setIsAdmin)
     // Picks up newly-approved join requests and role changes without a restart.
     const interval = setInterval(() => {
       window.api.listMyModpacks().then(setPacks)
@@ -64,6 +66,7 @@ export default function Home() {
           {session && <p style={{ color:'#8888aa', fontSize:13, marginTop:2 }}>Signed in as {session.minecraft_username}</p>}
         </div>
         <div style={{ display:'flex', gap:8 }}>
+          {isAdmin && <button onClick={() => nav('/admin')} className="btn btn-warning">Admin</button>}
           <button onClick={() => nav('/browse')} className="btn btn-secondary">Browse Public Packs</button>
           <button onClick={() => nav('/create')} className="btn btn-primary">+ Create Pack</button>
           <button onClick={handleLogout} className="btn btn-secondary">Sign out</button>

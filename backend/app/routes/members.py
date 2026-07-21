@@ -36,7 +36,7 @@ def user_role(pack: Modpack, user: dict, session: Session):
 async def lookup_minecraft_uuid(username: str):
     async with httpx.AsyncClient() as c:
         res = await c.get(f"https://api.mojang.com/users/profiles/minecraft/{username}")
-        if res.status_code == 404:
+        if res.status_code in (400, 404):
             raise HTTPException(404, f"Minecraft player '{username}' not found")
         res.raise_for_status()
         data = res.json()

@@ -90,6 +90,25 @@ export interface CheckUpdatesResponse {
   updates: UpdateCandidate[]
 }
 
+export interface BannedUser {
+  id: string
+  minecraft_uuid: string
+  minecraft_username: string
+  reason: string
+  created_at: string
+}
+
+export interface Report {
+  id: string
+  pack_id: string
+  pack_name: string
+  reporter_uuid: string
+  reporter_username: string
+  reason: string
+  status: 'open' | 'resolved' | 'dismissed'
+  created_at: string
+}
+
 export interface AuthTokens {
   access_token: string
   mc_access_token: string

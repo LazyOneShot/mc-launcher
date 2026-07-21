@@ -7,7 +7,7 @@ import httpx
 from app.models.modpack import (
     Modpack, ModpackCreate, ModpackRead, ModpackUpdate, ModpackWithRole, PublicModpackRead,
     Mod, ModRead, ModpackMember, ModpackMemberRead, ModpackServer, AuditLog,
-    JoinRequest, JoinRequestRead, MyJoinRequestRead,
+    JoinRequest, JoinRequestRead, MyJoinRequestRead, Report, ReportCreate,
 )
 from app.middleware.auth import current_user
 from app.storage.minio import upload_mod, delete_mod, presigned_url
@@ -253,14 +253,10 @@ def update_modpack(pack_id: str, body: ModpackUpdate, user=Depends(current_user)
     return pack
 
 
-@router.delete("/{pack_id}")
-def delete_modpack(pack_id: str, user=Depends(current_user), session: Session = Depends(get_session)):
-    pack = session.get(Modpack, pack_id)
-    if not pack:
-        raise HTTPException(404)
-    if pack.owner != user["uuid"]:
-        raise HTTPException(403, "Only the owner can delete a pack")
-
+def delete_pack_and_data(pack: Modpack, session: Session):
+    """Shared by the owner-facing delete and the admin force-delete — keeping
+    this in one place means a forgotten cleanup step can't drift between them."""
+    pack_id = pack.id
     for mod in pack.mods:
         try:
             delete_mod(mod.minio_key)
@@ -276,8 +272,41 @@ def delete_modpack(pack_id: str, user=Depends(current_user), session: Session = 
         session.delete(a)
     for r in session.exec(select(JoinRequest).where(JoinRequest.pack_id == pack_id)).all():
         session.delete(r)
+    for rep in session.exec(select(Report).where(Report.pack_id == pack_id)).all():
+        session.delete(rep)
 
     session.delete(pack)
+    session.commit()
+
+
+@router.delete("/{pack_id}")
+def delete_modpack(pack_id: str, user=Depends(current_user), session: Session = Depends(get_session)):
+    pack = session.get(Modpack, pack_id)
+    if not pack:
+        raise HTTPException(404)
+    if pack.owner != user["uuid"]:
+        raise HTTPException(403, "Only the owner can delete a pack")
+
+    delete_pack_and_data(pack, session)
+    return {"ok": True}
+
+
+@router.post("/{pack_id}/report")
+@limiter.limit("5/minute")
+def report_pack(request: Request, pack_id: str, body: ReportCreate, user=Depends(current_user), session: Session = Depends(get_session)):
+    pack = session.get(Modpack, pack_id)
+    if not pack:
+        raise HTTPException(404, "Modpack not found")
+    if not body.reason.strip():
+        raise HTTPException(400, "A reason is required")
+
+    session.add(Report(
+        pack_id=pack_id,
+        pack_name=pack.name,
+        reporter_uuid=user["uuid"],
+        reporter_username=user["name"],
+        reason=body.reason.strip(),
+    ))
     session.commit()
     return {"ok": True}
 
