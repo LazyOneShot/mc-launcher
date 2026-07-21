@@ -7,7 +7,7 @@ from app.routes import auth, modpacks, members, servers, external, audit
 
 engine = create_engine(settings.database_url)
 
-app = FastAPI(title="MC Launcher API", version="0.1.0")
+app = FastAPI(title="MC Launcher API", version="0.2.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 app.include_router(auth.router)
