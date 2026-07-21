@@ -3,16 +3,19 @@ from typing import Optional, List
 from datetime import datetime
 import uuid
 
+
 class Mod(SQLModel, table=True):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
     filename: str
     sha256: str
+    sha1: Optional[str] = None
     size_bytes: int
     minio_key: str
     download_url: str = ""
     uploaded_at: datetime = Field(default_factory=datetime.utcnow)
     modpack_id: str = Field(foreign_key="modpack.id")
     modpack: Optional["Modpack"] = Relationship(back_populates="mods")
+
 
 class ModRead(SQLModel):
     id: str
@@ -32,6 +35,7 @@ class ModpackMember(SQLModel, table=True):
     added_at: datetime = Field(default_factory=datetime.utcnow)
     modpack: Optional["Modpack"] = Relationship(back_populates="members")
 
+
 class ModpackMemberRead(SQLModel):
     id: str
     pack_id: str
@@ -40,11 +44,14 @@ class ModpackMemberRead(SQLModel):
     role: str
     added_at: datetime
 
+
 class AddMemberRequest(SQLModel):
     minecraft_username: str
 
+
 class ChangeRoleRequest(SQLModel):
     role: str
+
 
 class TransferOwnershipRequest(SQLModel):
     minecraft_uuid: str
@@ -60,6 +67,7 @@ class ModpackServer(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     modpack: Optional["Modpack"] = Relationship(back_populates="servers")
 
+
 class ModpackServerRead(SQLModel):
     id: str
     pack_id: str
@@ -68,16 +76,40 @@ class ModpackServerRead(SQLModel):
     port: int
     sort_order: int
 
+
 class ServerCreate(SQLModel):
     name: str
     host: str
     port: int = 25565
+
 
 class ServerUpdate(SQLModel):
     name: Optional[str] = None
     host: Optional[str] = None
     port: Optional[int] = None
     sort_order: Optional[int] = None
+
+
+class AuditLog(SQLModel, table=True):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    pack_id: str = Field(foreign_key="modpack.id", index=True)
+    actor_uuid: str
+    actor_username: str
+    action: str
+    target: str = ""
+    detail: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow, index=True)
+
+
+class AuditLogRead(SQLModel):
+    id: str
+    pack_id: str
+    actor_uuid: str
+    actor_username: str
+    action: str
+    target: str
+    detail: str
+    created_at: datetime
 
 
 class Modpack(SQLModel, table=True):
@@ -94,6 +126,7 @@ class Modpack(SQLModel, table=True):
     members: List[ModpackMember] = Relationship(back_populates="modpack")
     servers: List[ModpackServer] = Relationship(back_populates="modpack")
 
+
 class ModpackCreate(SQLModel):
     id: str
     name: str
@@ -102,12 +135,14 @@ class ModpackCreate(SQLModel):
     loader: str
     loader_version: str = ""
 
+
 class ModpackUpdate(SQLModel):
     name: Optional[str] = None
     description: Optional[str] = None
     mc_version: Optional[str] = None
     loader: Optional[str] = None
     loader_version: Optional[str] = None
+
 
 class ModpackRead(SQLModel):
     id: str

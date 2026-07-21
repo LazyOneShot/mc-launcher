@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('api', {
   getSession:         ()                                    => ipcRenderer.invoke('auth:getSession'),
   onDeviceCode:       (cb: (d: { userCode: string; verificationUri: string }) => void) =>
                         ipcRenderer.on('auth:deviceCode', (_e, d) => cb(d)),
+  onSessionExpired:   (cb: () => void)                      => ipcRenderer.on('auth:sessionExpired', () => cb()),
 
   // Modpacks
   getModpack:         (id: string)                          => ipcRenderer.invoke('modpacks:get', id),
@@ -15,6 +16,7 @@ contextBridge.exposeInMainWorld('api', {
   joinModpack:        (id: string)                          => ipcRenderer.invoke('modpacks:join', id),
   updateModpack:      (id: string, data: object)            => ipcRenderer.invoke('modpacks:update', id, data),
   deleteModpack:      (id: string)                          => ipcRenderer.invoke('modpacks:delete', id),
+  leaveModpack:       (id: string)                          => ipcRenderer.invoke('modpacks:leave', id),
   uploadMod:          (packId: string, fp: string)          => ipcRenderer.invoke('modpacks:uploadMod', packId, fp),
   uploadModsBulk:     (packId: string, fps: string[])       => ipcRenderer.invoke('modpacks:uploadModsBulk', packId, fps),
   onBulkUploadProgress: (cb: (d: any) => void)              => ipcRenderer.on('modpacks:bulkProgress', (_e, d) => cb(d)),

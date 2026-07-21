@@ -37,6 +37,7 @@ const ACTION_LABELS: Record<string, string> = {
   'member.add':         'added member',
   'member.remove':      'removed member',
   'member.join':        'joined the pack',
+  'member.leave':       'left the pack',
   'member.role_change': 'changed role for',
   'server.add':         'added server',
   'server.remove':      'removed server',
@@ -44,7 +45,7 @@ const ACTION_LABELS: Record<string, string> = {
 }
 
 function actionColor(action: string): string {
-  if (action.endsWith('.remove')) return '#f87171'
+  if (action.endsWith('.remove') || action === 'member.leave') return '#f87171'
   if (action.endsWith('.add') || action === 'member.join') return '#4ade80'
   if (action.endsWith('.update') || action.endsWith('.role_change')) return '#fbbf24'
   if (action === 'pack.transfer') return '#c084fc'
@@ -187,6 +188,12 @@ export default function PackDetail() {
   const handleDelete = async () => {
     if (!id || !confirm(`Delete "${pack?.name}"? This permanently removes all mods.`)) return
     await window.api.deleteModpack(id)
+    nav('/home')
+  }
+
+  const handleLeave = async () => {
+    if (!id || !confirm(`Leave "${pack?.name}"?`)) return
+    await window.api.leaveModpack(id)
     nav('/home')
   }
 
@@ -387,7 +394,7 @@ export default function PackDetail() {
       {/* SERVERS */}
       {tab === 'servers' && (
         <div>
-          {isOwner && (
+          {canEdit && (
             <div className="card" style={{ marginBottom:16 }}>
               <h3 style={{ fontSize:14, color:'#a5b4fc', marginBottom:12 }}>ADD SERVER</h3>
               <div style={{ display:'flex', gap:8, alignItems:'flex-end' }}>
@@ -416,7 +423,7 @@ export default function PackDetail() {
 
           {servers.length === 0 && (
             <div style={{ padding:24, textAlign:'center', color:'#6b6b8a', fontSize:13, background:'#0d0e1e', border:'1px solid #22243d', borderRadius:8 }}>
-              No servers added yet.{isOwner ? ' Add one above to enable one-click join buttons.' : ''}
+              No servers added yet.{canEdit ? ' Add one above to enable one-click join buttons.' : ''}
             </div>
           )}
 
@@ -428,7 +435,7 @@ export default function PackDetail() {
                   {s.host}:{s.port}
                 </span>
               </div>
-              {isOwner && <button onClick={() => handleDeleteServer(s.id)} className="icon-btn">✕</button>}
+              {canEdit && <button onClick={() => handleDeleteServer(s.id)} className="icon-btn">✕</button>}
             </div>
           ))}
         </div>
@@ -607,11 +614,17 @@ export default function PackDetail() {
             {savedMsg && <span style={{ color:'#22c55e', fontSize:13 }}>{savedMsg}</span>}
           </div>
 
-          {isOwner && (
+          {isOwner ? (
             <div className="card" style={{ borderColor:'#7f1d1d' }}>
               <h3 style={{ color:'#f87171', fontSize:14, marginBottom:8 }}>DANGER ZONE</h3>
               <p style={{ color:'#8888aa', fontSize:13, marginBottom:12 }}>Deleting a pack permanently removes all mods and cannot be undone.</p>
               <button onClick={handleDelete} className="btn btn-danger">Delete Pack</button>
+            </div>
+          ) : (
+            <div className="card" style={{ borderColor:'#7f1d1d' }}>
+              <h3 style={{ color:'#f87171', fontSize:14, marginBottom:8 }}>LEAVE PACK</h3>
+              <p style={{ color:'#8888aa', fontSize:13, marginBottom:12 }}>You'll lose access until the owner adds you back.</p>
+              <button onClick={handleLeave} className="btn btn-danger">Leave Modpack</button>
             </div>
           )}
         </div>

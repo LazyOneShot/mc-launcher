@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import { app, BrowserWindow, shell, Tray, Menu, nativeImage, ipcMain } from 'electron'
 import { join } from 'path'
+import { installAuthInterceptor } from './ipc/apiClient'
 import { authHandlers } from './ipc/auth'
 import { modpackHandlers } from './ipc/modpacks'
 import { launchHandlers } from './ipc/launch'
@@ -118,6 +119,7 @@ if (!gotLock) {
   app.whenReady().then(() => {
     createWindow()
     createTray()
+    installAuthInterceptor()
     authHandlers()
     modpackHandlers()
     launchHandlers()
