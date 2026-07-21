@@ -114,15 +114,6 @@ export default function PackDetail() {
     window.api.getMcVersions().then((vs: string[]) => { if (vs?.length > 0) setMcVersions(vs) })
   }, [id])
 
-  // Only fetch the log when the tab is actually opened.
-  useEffect(() => {
-    if (tab !== 'activity' || !id || auditLoaded) return
-    window.api.getAudit(id).then((rows: AuditEntry[]) => {
-      setAudit(rows)
-      setAuditLoaded(true)
-    }).catch(() => setAuditLoaded(true))
-  }, [tab, id, auditLoaded])
-
   useEffect(() => {
     if (!editForm.mc_version || editForm.loader !== 'forge') { setForgeVersions([]); return }
     setLoadingForge(true)
@@ -139,6 +130,15 @@ export default function PackDetail() {
   const myMembership = members.find(m => session && m.minecraft_uuid === session.minecraft_uuid)
   const myRole = isOwner ? 'owner' : myMembership?.role || 'viewer'
   const canEdit = myRole === 'owner' || myRole === 'editor'
+
+  // Only fetch the log when the tab is actually opened.
+  useEffect(() => {
+    if (tab !== 'activity' || !id || !canEdit || auditLoaded) return
+    window.api.getAudit(id).then((rows: AuditEntry[]) => {
+      setAudit(rows)
+      setAuditLoaded(true)
+    }).catch(() => setAuditLoaded(true))
+  }, [tab, id, canEdit, auditLoaded])
 
   useEffect(() => {
     if (tab !== 'members' || !id || !isOwner || pack?.join_mode !== 'request' || joinRequestsLoaded) return
@@ -325,7 +325,7 @@ export default function PackDetail() {
       )}
 
       <div style={{ display:'flex', gap:2, borderBottom:'1px solid #22243d', marginBottom:16 }}>
-        {(['mods', 'servers', 'members', 'activity', 'settings'] as Tab[]).map(t => (
+        {(['mods', 'servers', 'members', 'activity', 'settings'] as Tab[]).filter(t => t !== 'activity' || canEdit).map(t => (
           <button key={t} onClick={() => setTab(t)}
             style={{
               padding:'10px 20px', background:'none', border:'none',
@@ -539,7 +539,7 @@ export default function PackDetail() {
       )}
 
       {/* ACTIVITY */}
-      {tab === 'activity' && (
+      {tab === 'activity' && canEdit && (
         <div>
           {!auditLoaded && (
             <p style={{ color:'#6b6b8a', fontSize:13, textAlign:'center', padding:24 }}>Loading activity...</p>
