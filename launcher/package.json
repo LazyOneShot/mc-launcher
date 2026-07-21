@@ -20,7 +20,7 @@
     "electron-store": "^8.1.0",
     "electron-updater": "^6.8.9",
     "form-data": "^4.0.0",
-    "fs-extra": "^11.2.0",
+    "fs-extra": "^11.3.6",
     "minecraft-launcher-core": "^3.18.2",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
