@@ -24,14 +24,13 @@ def list_audit(
     if not pack:
         raise HTTPException(404, "Modpack not found")
 
-    is_member = pack.owner == user["uuid"] or session.exec(
-        select(ModpackMember).where(
+    if pack.owner != user["uuid"]:
+        member = session.exec(select(ModpackMember).where(
             ModpackMember.pack_id == pack_id,
             ModpackMember.minecraft_uuid == user["uuid"],
-        )
-    ).first()
-    if not is_member:
-        raise HTTPException(403, "You must be a member of this pack")
+        )).first()
+        if not member or member.role != "editor":
+            raise HTTPException(403, "Only the owner and editors can view activity")
 
     q = select(AuditLog).where(AuditLog.pack_id == pack_id)
     q = q.order_by(AuditLog.created_at.desc()).limit(limit)
