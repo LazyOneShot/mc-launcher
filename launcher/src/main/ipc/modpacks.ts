@@ -51,6 +51,11 @@ export function modpackHandlers() {
     return true
   })
 
+  ipcMain.handle('modpacks:leave', async (_e, id: string) => {
+    await axios.post(`${API}/modpacks/${id}/leave`, {}, { headers: authHeader() })
+    return true
+  })
+
   ipcMain.handle('modpacks:uploadMod', async (_e, packId: string, filePath: string) => {
     const form = new FormData()
     form.append('file', fs.createReadStream(filePath))

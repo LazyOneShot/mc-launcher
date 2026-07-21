@@ -1,6 +1,6 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { HashRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import './styles.css'
 import StartupUpdate from './pages/StartupUpdate'
 import Login from './pages/Login'
@@ -12,6 +12,12 @@ import TitleBar from './components/TitleBar'
 import VersionBadge from './components/VersionBadge'
 
 function App() {
+  const nav = useNavigate()
+
+  useEffect(() => {
+    window.api.onSessionExpired(() => nav('/login'))
+  }, [])
+
   return (
     <>
       <TitleBar />
