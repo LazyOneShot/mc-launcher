@@ -31,6 +31,11 @@ export function modpackHandlers() {
     return data
   })
 
+  ipcMain.handle('modpacks:listPublic', async () => {
+    const { data } = await axios.get(`${API}/modpacks/public`)
+    return data
+  })
+
   ipcMain.handle('modpacks:create', async (_e, meta: object) => {
     const { data } = await axios.post(`${API}/modpacks`, meta, { headers: authHeader() })
     return data
@@ -53,6 +58,21 @@ export function modpackHandlers() {
 
   ipcMain.handle('modpacks:leave', async (_e, id: string) => {
     await axios.post(`${API}/modpacks/${id}/leave`, {}, { headers: authHeader() })
+    return true
+  })
+
+  ipcMain.handle('modpacks:listJoinRequests', async (_e, packId: string) => {
+    const { data } = await axios.get(`${API}/modpacks/${packId}/join-requests`, { headers: authHeader() })
+    return data
+  })
+
+  ipcMain.handle('modpacks:approveJoinRequest', async (_e, packId: string, requestId: string) => {
+    const { data } = await axios.post(`${API}/modpacks/${packId}/join-requests/${requestId}/approve`, {}, { headers: authHeader() })
+    return data
+  })
+
+  ipcMain.handle('modpacks:denyJoinRequest', async (_e, packId: string, requestId: string) => {
+    await axios.post(`${API}/modpacks/${packId}/join-requests/${requestId}/deny`, {}, { headers: authHeader() })
     return true
   })
 

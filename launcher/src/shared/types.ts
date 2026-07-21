@@ -15,8 +15,29 @@ export interface ModpackMeta {
   loader: 'forge' | 'neoforge' | 'fabric'
   loader_version: string
   owner: string
+  owner_username: string
+  visibility: 'public' | 'private'
+  join_mode: 'open' | 'request'
   created_at: string
   updated_at: string
+}
+
+export interface PublicPack {
+  id: string
+  name: string
+  description: string
+  mc_version: string
+  loader: string
+  owner_username: string
+  join_mode: 'open' | 'request'
+}
+
+export interface JoinRequest {
+  id: string
+  pack_id: string
+  minecraft_uuid: string
+  minecraft_username: string
+  created_at: string
 }
 
 export interface Mod {

@@ -6,7 +6,7 @@ const FALLBACK_MC_VERSIONS = ['1.21.1', '1.20.4', '1.20.1', '1.19.4', '1.18.2']
 
 export default function CreatePack() {
   const nav = useNavigate()
-  const [form, setForm] = useState({ name:'', id:'', description:'', mc_version:'1.20.1', loader:'forge', loader_version:'' })
+  const [form, setForm] = useState({ name:'', id:'', description:'', mc_version:'1.20.1', loader:'forge', loader_version:'', visibility:'private', join_mode:'open' })
   const [error, setError] = useState('')
   const [mcVersions, setMcVersions] = useState<string[]>(FALLBACK_MC_VERSIONS)
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
@@ -64,6 +64,26 @@ export default function CreatePack() {
               Loader Version <span style={{ color:'#6b6b8a', fontWeight:'normal' }}>(leave blank for latest)</span>
             </label>
             <input className="input" value={form.loader_version} onChange={e => set('loader_version', e.target.value)} placeholder="Leave blank for latest" />
+          </div>
+          <div style={{ display:'flex', gap:10 }}>
+            <div style={{ flex:1 }}>
+              <label style={{ display:'block', marginBottom:6, color:'#a5b4fc', fontSize:13 }}>
+                Visibility <span style={{ color:'#6b6b8a', fontWeight:'normal' }}>(discoverability)</span>
+              </label>
+              <select className="select" value={form.visibility} onChange={e => set('visibility', e.target.value)}>
+                <option value="private">Private — share the pack ID to invite</option>
+                <option value="public">Public — listed in Browse Packs</option>
+              </select>
+            </div>
+            <div style={{ flex:1 }}>
+              <label style={{ display:'block', marginBottom:6, color:'#a5b4fc', fontSize:13 }}>
+                Join Mode <span style={{ color:'#6b6b8a', fontWeight:'normal' }}>(who gets in)</span>
+              </label>
+              <select className="select" value={form.join_mode} onChange={e => set('join_mode', e.target.value)}>
+                <option value="open">Open — join instantly</option>
+                <option value="request">Request — you approve each join</option>
+              </select>
+            </div>
           </div>
           {error && <p style={{ color:'#f87171', fontSize:13 }}>{error}</p>}
           <button onClick={handleCreate} className="btn btn-primary" style={{ padding:'12px', marginTop:8 }}>Create Pack</button>

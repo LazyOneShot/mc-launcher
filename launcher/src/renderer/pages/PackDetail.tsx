@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import type { ModpackFull, ModpackServer, AuditEntry } from '../../shared/types'
+import type { ModpackFull, ModpackServer, AuditEntry, JoinRequest } from '../../shared/types'
 import ModrinthBrowser from '../components/ModrinthBrowser'
 import UpdateChecker from '../components/UpdateChecker'
 
@@ -38,6 +38,9 @@ const ACTION_LABELS: Record<string, string> = {
   'member.remove':      'removed member',
   'member.join':        'joined the pack',
   'member.leave':       'left the pack',
+  'member.request':     'requested to join',
+  'member.approve':     'approved join request for',
+  'member.deny':        'denied join request for',
   'member.role_change': 'changed role for',
   'server.add':         'added server',
   'server.remove':      'removed server',
@@ -45,8 +48,9 @@ const ACTION_LABELS: Record<string, string> = {
 }
 
 function actionColor(action: string): string {
-  if (action.endsWith('.remove') || action === 'member.leave') return '#f87171'
-  if (action.endsWith('.add') || action === 'member.join') return '#4ade80'
+  if (action.endsWith('.remove') || action === 'member.leave' || action === 'member.deny') return '#f87171'
+  if (action.endsWith('.add') || action === 'member.join' || action === 'member.approve') return '#4ade80'
+  if (action === 'member.request') return '#fbbf24'
   if (action.endsWith('.update') || action.endsWith('.role_change')) return '#fbbf24'
   if (action === 'pack.transfer') return '#c084fc'
   return '#8888aa'
@@ -80,7 +84,9 @@ export default function PackDetail() {
   const [session, setSession] = useState<any>(null)
   const [tab, setTab] = useState<Tab>('mods')
   const [modSearch, setModSearch] = useState('')
-  const [editForm, setEditForm] = useState({ name: '', description: '', mc_version: '', loader: '', loader_version: '' })
+  const [editForm, setEditForm] = useState({ name: '', description: '', mc_version: '', loader: '', loader_version: '', visibility: 'private', join_mode: 'open' })
+  const [joinRequests, setJoinRequests] = useState<JoinRequest[]>([])
+  const [joinRequestsLoaded, setJoinRequestsLoaded] = useState(false)
   const [launchOpts, setLaunchOpts] = useState<LaunchOptions>({ min_ram: '2G', max_ram: '4G', jvm_args: '', java_path: '' })
   const [savedMsg, setSavedMsg] = useState('')
   const [mcVersions, setMcVersions] = useState<string[]>(FALLBACK_MC_VERSIONS)
@@ -97,7 +103,7 @@ export default function PackDetail() {
     if (!id) return
     window.api.getModpack(id).then((p: any) => {
       setPack(p)
-      setEditForm({ name: p.name, description: p.description, mc_version: p.mc_version, loader: p.loader, loader_version: p.loader_version })
+      setEditForm({ name: p.name, description: p.description, mc_version: p.mc_version, loader: p.loader, loader_version: p.loader_version, visibility: p.visibility, join_mode: p.join_mode })
     })
     window.api.getMembers(id).then(setMembers)
     window.api.listServers(id).then(setServers)
@@ -133,6 +139,14 @@ export default function PackDetail() {
   const myMembership = members.find(m => session && m.minecraft_uuid === session.minecraft_uuid)
   const myRole = isOwner ? 'owner' : myMembership?.role || 'viewer'
   const canEdit = myRole === 'owner' || myRole === 'editor'
+
+  useEffect(() => {
+    if (tab !== 'members' || !id || !isOwner || pack?.join_mode !== 'request' || joinRequestsLoaded) return
+    window.api.listJoinRequests(id).then((rows: JoinRequest[]) => {
+      setJoinRequests(rows)
+      setJoinRequestsLoaded(true)
+    }).catch(() => setJoinRequestsLoaded(true))
+  }, [tab, id, isOwner, pack?.join_mode, joinRequestsLoaded])
 
   const refreshPack = async () => {
     if (!id) return
@@ -252,6 +266,21 @@ export default function PackDetail() {
     if (!id || !confirm(`Transfer ownership to ${username}?`)) return
     await window.api.transferOwnership(id, uuid)
     setPack(p => p ? { ...p, owner: uuid } : p)
+    setAuditLoaded(false)
+  }
+
+  const handleApproveRequest = async (req: JoinRequest) => {
+    if (!id) return
+    const member: any = await window.api.approveJoinRequest(id, req.id)
+    setMembers(mm => [...mm, member])
+    setJoinRequests(rr => rr.filter(r => r.id !== req.id))
+    setAuditLoaded(false)
+  }
+
+  const handleDenyRequest = async (req: JoinRequest) => {
+    if (!id) return
+    await window.api.denyJoinRequest(id, req.id)
+    setJoinRequests(rr => rr.filter(r => r.id !== req.id))
     setAuditLoaded(false)
   }
 
@@ -454,10 +483,25 @@ export default function PackDetail() {
             </>
           )}
 
+          {isOwner && pack.join_mode === 'request' && joinRequests.length > 0 && (
+            <div className="card" style={{ marginBottom:16, borderColor:'#4a2f04' }}>
+              <h3 style={{ fontSize:14, color:'#fbbf24', marginBottom:12 }}>PENDING REQUESTS ({joinRequests.length})</h3>
+              {joinRequests.map(req => (
+                <div key={req.id} className="member-row">
+                  <span style={{ fontWeight:600 }}>{req.minecraft_username}</span>
+                  <div style={{ display:'flex', gap:6 }}>
+                    <button onClick={() => handleApproveRequest(req)} className="btn btn-success" style={{ padding:'6px 12px', fontSize:12 }}>Approve</button>
+                    <button onClick={() => handleDenyRequest(req)} className="btn btn-secondary" style={{ padding:'6px 12px', fontSize:12 }}>Deny</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="member-row" style={{ borderColor:'#4a7ce8' }}>
             <div>
               <span style={{ fontWeight:600 }}>
-                {isOwner ? session?.minecraft_username : (members.find(m => m.minecraft_uuid === pack.owner)?.minecraft_username || 'Owner')}
+                {isOwner ? session?.minecraft_username : (pack.owner_username || 'Owner')}
               </span>
               <span className="badge" style={{ background:'#3b0764', color:'#c084fc' }}>owner</span>
             </div>
@@ -570,6 +614,22 @@ export default function PackDetail() {
                     )}
                   </div>
                 </div>
+                <div style={{ display:'flex', gap:10 }}>
+                  <div style={{ flex:1 }}>
+                    <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Visibility</label>
+                    <select className="select" value={editForm.visibility} onChange={e => setEditForm(f => ({ ...f, visibility: e.target.value }))}>
+                      <option value="private">Private — share the pack ID to invite</option>
+                      <option value="public">Public — listed in Browse Packs</option>
+                    </select>
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <label style={{ display:'block', marginBottom:4, color:'#8888aa', fontSize:12 }}>Join Mode</label>
+                    <select className="select" value={editForm.join_mode} onChange={e => setEditForm(f => ({ ...f, join_mode: e.target.value }))}>
+                      <option value="open">Open — join instantly</option>
+                      <option value="request">Request — you approve each join</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -623,7 +683,7 @@ export default function PackDetail() {
           ) : (
             <div className="card" style={{ borderColor:'#7f1d1d' }}>
               <h3 style={{ color:'#f87171', fontSize:14, marginBottom:8 }}>LEAVE PACK</h3>
-              <p style={{ color:'#8888aa', fontSize:13, marginBottom:12 }}>You'll lose access until the owner adds you back.</p>
+              <p style={{ color:'#8888aa', fontSize:13, marginBottom:12 }}>You can rejoin anytime with the pack ID.</p>
               <button onClick={handleLeave} className="btn btn-danger">Leave Modpack</button>
             </div>
           )}

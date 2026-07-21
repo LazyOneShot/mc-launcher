@@ -2,16 +2,28 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlmodel import Session, select
 from datetime import datetime
 import hashlib
+import httpx
 
 from app.models.modpack import (
-    Modpack, ModpackCreate, ModpackRead, ModpackUpdate,
-    Mod, ModRead, ModpackMember, ModpackServer, AuditLog,
+    Modpack, ModpackCreate, ModpackRead, ModpackUpdate, PublicModpackRead,
+    Mod, ModRead, ModpackMember, ModpackMemberRead, ModpackServer, AuditLog,
+    JoinRequest, JoinRequestRead,
 )
 from app.middleware.auth import current_user
 from app.storage.minio import upload_mod, delete_mod, presigned_url
 from app.audit import log_action
 
 router = APIRouter(prefix="/modpacks", tags=["modpacks"])
+
+VALID_VISIBILITY = {"public", "private"}
+VALID_JOIN_MODE = {"open", "request"}
+
+
+def _validate_policy_fields(visibility: str | None, join_mode: str | None):
+    if visibility is not None and visibility not in VALID_VISIBILITY:
+        raise HTTPException(400, "visibility must be 'public' or 'private'")
+    if join_mode is not None and join_mode not in VALID_JOIN_MODE:
+        raise HTTPException(400, "join_mode must be 'open' or 'request'")
 
 
 def get_session():
@@ -46,11 +58,31 @@ def list_mine(user=Depends(current_user), session: Session = Depends(get_session
     return list(all_packs.values())
 
 
+@router.get("/public", response_model=list[PublicModpackRead])
+def list_public(session: Session = Depends(get_session)):
+    return session.exec(select(Modpack).where(Modpack.visibility == "public")).all()
+
+
+async def _backfill_owner_username(pack: Modpack, session: Session):
+    # Packs created before owner_username existed have it blank — recover it
+    # once from Mojang and persist so we don't hit their API on every load.
+    try:
+        async with httpx.AsyncClient() as c:
+            res = await c.get(f"https://sessionserver.mojang.com/session/minecraft/profile/{pack.owner.replace('-', '')}")
+            if res.status_code == 200:
+                pack.owner_username = res.json()["name"]
+                session.commit()
+    except Exception:
+        pass
+
+
 @router.get("/{pack_id}", response_model=ModpackRead)
-def get_modpack(pack_id: str, session: Session = Depends(get_session)):
+async def get_modpack(pack_id: str, session: Session = Depends(get_session)):
     pack = session.get(Modpack, pack_id)
     if not pack:
         raise HTTPException(404, "Modpack not found")
+    if not pack.owner_username:
+        await _backfill_owner_username(pack, session)
     for mod in pack.mods:
         mod.download_url = presigned_url(mod.minio_key)
     return pack
@@ -60,7 +92,8 @@ def get_modpack(pack_id: str, session: Session = Depends(get_session)):
 def create_modpack(body: ModpackCreate, user=Depends(current_user), session: Session = Depends(get_session)):
     if session.get(Modpack, body.id):
         raise HTTPException(409, "Pack ID already taken")
-    pack = Modpack(**body.dict(), owner=user["uuid"])
+    _validate_policy_fields(body.visibility, body.join_mode)
+    pack = Modpack(**body.dict(), owner=user["uuid"], owner_username=user["name"])
     session.add(pack)
     log_action(session, pack.id, user, "pack.create", target=pack.name)
     session.commit()
@@ -81,6 +114,19 @@ def join_modpack(pack_id: str, user=Depends(current_user), session: Session = De
     )).first()
     if existing:
         return {"ok": True, "role": existing.role}
+
+    if pack.join_mode == "request":
+        pending = session.exec(select(JoinRequest).where(
+            JoinRequest.pack_id == pack_id,
+            JoinRequest.minecraft_uuid == user["uuid"],
+        )).first()
+        if pending:
+            return {"ok": True, "status": "pending"}
+        session.add(JoinRequest(pack_id=pack_id, minecraft_uuid=user["uuid"], minecraft_username=user["name"]))
+        log_action(session, pack_id, user, "member.request", target=user["name"])
+        session.commit()
+        return {"ok": True, "status": "pending"}
+
     session.add(ModpackMember(
         pack_id=pack_id,
         minecraft_uuid=user["uuid"],
@@ -92,6 +138,55 @@ def join_modpack(pack_id: str, user=Depends(current_user), session: Session = De
     return {"ok": True, "role": "viewer"}
 
 
+@router.get("/{pack_id}/join-requests", response_model=list[JoinRequestRead])
+def list_join_requests(pack_id: str, user=Depends(current_user), session: Session = Depends(get_session)):
+    pack = session.get(Modpack, pack_id)
+    if not pack:
+        raise HTTPException(404, "Modpack not found")
+    if pack.owner != user["uuid"]:
+        raise HTTPException(403, "Only the pack owner can view join requests")
+    return session.exec(select(JoinRequest).where(JoinRequest.pack_id == pack_id)).all()
+
+
+@router.post("/{pack_id}/join-requests/{request_id}/approve", response_model=ModpackMemberRead)
+def approve_join_request(pack_id: str, request_id: str, user=Depends(current_user), session: Session = Depends(get_session)):
+    pack = session.get(Modpack, pack_id)
+    if not pack:
+        raise HTTPException(404, "Modpack not found")
+    if pack.owner != user["uuid"]:
+        raise HTTPException(403, "Only the pack owner can approve join requests")
+
+    req = session.get(JoinRequest, request_id)
+    if not req or req.pack_id != pack_id:
+        raise HTTPException(404, "Join request not found")
+
+    member = ModpackMember(pack_id=pack_id, minecraft_uuid=req.minecraft_uuid, minecraft_username=req.minecraft_username, role="viewer")
+    session.add(member)
+    session.delete(req)
+    log_action(session, pack_id, user, "member.approve", target=req.minecraft_username)
+    session.commit()
+    session.refresh(member)
+    return member
+
+
+@router.post("/{pack_id}/join-requests/{request_id}/deny")
+def deny_join_request(pack_id: str, request_id: str, user=Depends(current_user), session: Session = Depends(get_session)):
+    pack = session.get(Modpack, pack_id)
+    if not pack:
+        raise HTTPException(404, "Modpack not found")
+    if pack.owner != user["uuid"]:
+        raise HTTPException(403, "Only the pack owner can deny join requests")
+
+    req = session.get(JoinRequest, request_id)
+    if not req or req.pack_id != pack_id:
+        raise HTTPException(404, "Join request not found")
+
+    log_action(session, pack_id, user, "member.deny", target=req.minecraft_username)
+    session.delete(req)
+    session.commit()
+    return {"ok": True}
+
+
 @router.patch("/{pack_id}", response_model=ModpackRead)
 def update_modpack(pack_id: str, body: ModpackUpdate, user=Depends(current_user), session: Session = Depends(get_session)):
     pack = session.get(Modpack, pack_id)
@@ -99,6 +194,7 @@ def update_modpack(pack_id: str, body: ModpackUpdate, user=Depends(current_user)
         raise HTTPException(404)
     if pack.owner != user["uuid"]:
         raise HTTPException(403, "Only the owner can edit pack settings")
+    _validate_policy_fields(body.visibility, body.join_mode)
 
     changed = []
     for k, v in body.dict(exclude_unset=True).items():
@@ -135,6 +231,8 @@ def delete_modpack(pack_id: str, user=Depends(current_user), session: Session = 
         session.delete(s)
     for a in session.exec(select(AuditLog).where(AuditLog.pack_id == pack_id)).all():
         session.delete(a)
+    for r in session.exec(select(JoinRequest).where(JoinRequest.pack_id == pack_id)).all():
+        session.delete(r)
 
     session.delete(pack)
     session.commit()
