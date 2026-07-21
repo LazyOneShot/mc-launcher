@@ -6,6 +6,7 @@ export default function Home() {
   const [packs, setPacks] = useState<ModpackMeta[]>([])
   const [joinId, setJoinId] = useState('')
   const [joinError, setJoinError] = useState('')
+  const [joinMsg, setJoinMsg] = useState('')
   const [session, setSession] = useState<any>(null)
   const nav = useNavigate()
 
@@ -16,10 +17,15 @@ export default function Home() {
 
   const handleJoin = async () => {
     if (!joinId.trim()) return
-    setJoinError('')
+    setJoinError(''); setJoinMsg('')
     try {
-      await window.api.joinModpack(joinId.trim())
-      nav(`/pack/${joinId.trim()}`)
+      const res: any = await window.api.joinModpack(joinId.trim())
+      if (res?.status === 'pending') {
+        setJoinMsg('Request sent — waiting for the owner to approve.')
+        setJoinId('')
+      } else {
+        nav(`/pack/${joinId.trim()}`)
+      }
     } catch (e: any) {
       setJoinError(e?.response?.data?.detail || 'Failed to join pack')
     }
@@ -38,6 +44,7 @@ export default function Home() {
           {session && <p style={{ color:'#8888aa', fontSize:13, marginTop:2 }}>Signed in as {session.minecraft_username}</p>}
         </div>
         <div style={{ display:'flex', gap:8 }}>
+          <button onClick={() => nav('/browse')} className="btn btn-secondary">Browse Public Packs</button>
           <button onClick={() => nav('/create')} className="btn btn-primary">+ Create Pack</button>
           <button onClick={handleLogout} className="btn btn-secondary">Sign out</button>
         </div>
@@ -50,6 +57,7 @@ export default function Home() {
           <button onClick={handleJoin} className="btn btn-success">Join</button>
         </div>
         {joinError && <p style={{ color:'#f87171', fontSize:13, marginTop:8 }}>{joinError}</p>}
+        {joinMsg && <p style={{ color:'#4ade80', fontSize:13, marginTop:8 }}>{joinMsg}</p>}
       </div>
 
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:12 }}>

@@ -150,6 +150,7 @@ def transfer_ownership(pack_id: str, body: TransferOwnershipRequest, user=Depend
     new_owner_name = target.minecraft_username
 
     pack.owner = body.minecraft_uuid
+    pack.owner_username = new_owner_name
     session.delete(target)
     session.add(ModpackMember(
         pack_id=pack_id,

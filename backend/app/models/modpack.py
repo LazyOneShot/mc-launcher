@@ -49,6 +49,22 @@ class AddMemberRequest(SQLModel):
     minecraft_username: str
 
 
+class JoinRequest(SQLModel, table=True):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    pack_id: str = Field(foreign_key="modpack.id")
+    minecraft_uuid: str
+    minecraft_username: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class JoinRequestRead(SQLModel):
+    id: str
+    pack_id: str
+    minecraft_uuid: str
+    minecraft_username: str
+    created_at: datetime
+
+
 class ChangeRoleRequest(SQLModel):
     role: str
 
@@ -120,6 +136,9 @@ class Modpack(SQLModel, table=True):
     loader: str
     loader_version: str
     owner: str
+    owner_username: str = ""
+    visibility: str = "private"     # "private" | "public" — whether it's listed in the public directory
+    join_mode: str = "open"         # "open" | "request" — whether /join adds instantly or files a request
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     mods: List[Mod] = Relationship(back_populates="modpack")
@@ -134,6 +153,8 @@ class ModpackCreate(SQLModel):
     mc_version: str
     loader: str
     loader_version: str = ""
+    visibility: str = "private"
+    join_mode: str = "open"
 
 
 class ModpackUpdate(SQLModel):
@@ -142,6 +163,8 @@ class ModpackUpdate(SQLModel):
     mc_version: Optional[str] = None
     loader: Optional[str] = None
     loader_version: Optional[str] = None
+    visibility: Optional[str] = None
+    join_mode: Optional[str] = None
 
 
 class ModpackRead(SQLModel):
@@ -152,8 +175,21 @@ class ModpackRead(SQLModel):
     loader: str
     loader_version: str
     owner: str
+    owner_username: str
+    visibility: str
+    join_mode: str
     created_at: datetime
     updated_at: datetime
     mods: List[ModRead] = []
     members: List[ModpackMemberRead] = []
     servers: List[ModpackServerRead] = []
+
+
+class PublicModpackRead(SQLModel):
+    id: str
+    name: str
+    description: str
+    mc_version: str
+    loader: str
+    owner_username: str
+    join_mode: str
