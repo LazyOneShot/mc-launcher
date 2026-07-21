@@ -288,6 +288,13 @@ export default function PackDetail() {
     window.api.getMembers(id).then(setMembers)
   }
 
+  const handleStartAssist = async () => {
+    if (!id) return
+    await window.api.startAssist(id)
+    await refreshPack()
+    window.api.getMembers(id).then(setMembers)
+  }
+
   const submitReport = async (reason: string) => {
     if (!id || !reportTarget) return
     if (reportTarget.kind === 'pack') {
@@ -408,6 +415,11 @@ export default function PackDetail() {
           {isAdmin && !isOwner && myRole === 'editor' && (
             <button onClick={handleStopAssist} className="btn btn-secondary" style={{ padding:'6px 12px', fontSize:12 }}>
               Stop Assisting
+            </button>
+          )}
+          {isAdmin && !isOwner && myRole !== 'editor' && (
+            <button onClick={handleStartAssist} className="btn btn-warning" style={{ padding:'6px 12px', fontSize:12 }}>
+              Start Assisting
             </button>
           )}
           <button onClick={() => setReportTarget({ kind: 'pack' })} className="icon-btn" title="Report this pack">⚑</button>
