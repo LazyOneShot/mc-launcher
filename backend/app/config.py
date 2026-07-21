@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7
 
+    enable_docs: bool = False
+
     class Config:
         env_file = ".env"
 

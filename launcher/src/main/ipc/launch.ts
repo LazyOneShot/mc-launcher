@@ -12,8 +12,16 @@ import type { Mod, ModpackFull } from '../../shared/types'
 const API = process.env.API_URL || 'https://mc-api.daboismc.win'
 const localOpts = new Store<{ launchOptions?: Record<string, any> }>({ name: 'launch-options' })
 
+// The backend validates pack IDs server-side, but a compromised/rogue
+// backend or a stale cached manifest is still untrusted input here — never
+// let a pack ID resolve to a path outside the packs root.
 function packDir(packId: string) {
-  return path.join(app.getPath('userData'), 'packs', packId)
+  const root = path.join(app.getPath('userData'), 'packs')
+  const dir = path.join(root, packId)
+  if (dir !== root && !dir.startsWith(root + path.sep)) {
+    throw new Error(`Refusing to use unsafe pack directory for id "${packId}"`)
+  }
+  return dir
 }
 
 function sha256File(filePath: string): Promise<string> {

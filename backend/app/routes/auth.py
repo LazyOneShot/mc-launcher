@@ -1,7 +1,10 @@
-from fastapi import APIRouter, HTTPException
+import logging
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from app.middleware.auth import verify_microsoft_token, create_jwt
-import traceback
+from app.limiter import limiter
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -9,12 +12,13 @@ class LoginRequest(BaseModel):
     ms_access_token: str
 
 @router.post("/login")
-async def login(body: LoginRequest):
+@limiter.limit("10/minute")
+async def login(request: Request, body: LoginRequest):
     try:
         profile = await verify_microsoft_token(body.ms_access_token)
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(401, f"Microsoft auth failed: {str(e)}")
+    except Exception:
+        logger.exception("Microsoft auth failed during login")
+        raise HTTPException(401, "Microsoft authentication failed")
     return {
         "token": create_jwt(profile["id"], profile["name"]),
         "minecraft_uuid": profile["id"],
@@ -24,12 +28,13 @@ async def login(body: LoginRequest):
     }
 
 @router.post("/refresh")
-async def refresh(body: LoginRequest):
+@limiter.limit("20/minute")
+async def refresh(request: Request, body: LoginRequest):
     try:
         profile = await verify_microsoft_token(body.ms_access_token)
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(401, f"Token refresh failed: {str(e)}")
+    except Exception:
+        logger.exception("Microsoft auth failed during refresh")
+        raise HTTPException(401, "Token refresh failed")
     return {
         "token": create_jwt(profile["id"], profile["name"]),
         "minecraft_uuid": profile["id"],

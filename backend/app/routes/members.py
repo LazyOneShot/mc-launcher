@@ -23,6 +23,16 @@ def require_owner(pack: Modpack, user: dict):
         raise HTTPException(403, "Only the pack owner can do this")
 
 
+def user_role(pack: Modpack, user: dict, session: Session):
+    if pack.owner == user["uuid"]:
+        return "owner"
+    m = session.exec(select(ModpackMember).where(
+        ModpackMember.pack_id == pack.id,
+        ModpackMember.minecraft_uuid == user["uuid"],
+    )).first()
+    return m.role if m else None
+
+
 async def lookup_minecraft_uuid(username: str):
     async with httpx.AsyncClient() as c:
         res = await c.get(f"https://api.mojang.com/users/profiles/minecraft/{username}")
@@ -36,7 +46,12 @@ async def lookup_minecraft_uuid(username: str):
 
 
 @router.get("/{pack_id}/members", response_model=list[ModpackMemberRead])
-def list_members(pack_id: str, session: Session = Depends(get_session)):
+def list_members(pack_id: str, user=Depends(current_user), session: Session = Depends(get_session)):
+    pack = session.get(Modpack, pack_id)
+    if not pack:
+        raise HTTPException(404, "Modpack not found")
+    if pack.visibility != "public" and user_role(pack, user, session) is None:
+        raise HTTPException(403, "You must be a member of this pack to view its members")
     return session.exec(select(ModpackMember).where(ModpackMember.pack_id == pack_id)).all()
 
 

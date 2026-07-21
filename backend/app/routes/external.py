@@ -12,6 +12,7 @@ from app.models.modpack import Modpack, ModpackMember, Mod, ModRead
 from app.middleware.auth import current_user
 from app.storage.minio import upload_mod, delete_mod, presigned_url, client as minio_client
 from app.audit import log_action
+from app.validation import validate_mod_filename
 
 router = APIRouter(prefix="/modpacks", tags=["external"])
 
@@ -42,15 +43,6 @@ def _validate_url(url: str) -> None:
     parsed = urlparse(url)
     if parsed.scheme != "https" or parsed.hostname not in ALLOWED_HOSTS:
         raise HTTPException(400, f"URL host not allowed: {parsed.hostname}")
-
-
-def _validate_filename(filename: str) -> str:
-    filename = (filename or "").strip()
-    if not filename or "/" in filename or "\\" in filename or ".." in filename:
-        raise HTTPException(400, "Invalid filename")
-    if not filename.lower().endswith(".jar"):
-        raise HTTPException(400, "Only .jar files are supported")
-    return filename
 
 
 async def _download(url: str) -> bytes:
@@ -91,7 +83,7 @@ async def add_mod_from_url(pack_id: str, body: AddFromUrlRequest, user=Depends(c
         raise HTTPException(403, "You don't have permission to modify this pack")
 
     _validate_url(body.url)
-    filename = _validate_filename(body.filename)
+    filename = validate_mod_filename(body.filename)
 
     if any(m.filename == filename for m in pack.mods):
         raise HTTPException(409, f"{filename} is already in this pack")
@@ -215,7 +207,7 @@ async def apply_update(pack_id: str, mod_id: str, body: ApplyUpdateRequest, user
         raise HTTPException(404, "Mod not found in this pack")
 
     _validate_url(body.url)
-    new_filename = _validate_filename(body.filename)
+    new_filename = validate_mod_filename(body.filename)
 
     data = await _download(body.url)
     new_key, sha256, size = upload_mod(pack_id, new_filename, data)

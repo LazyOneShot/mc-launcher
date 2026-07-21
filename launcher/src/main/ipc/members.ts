@@ -14,7 +14,7 @@ function authHeader() {
 
 export function memberHandlers() {
   ipcMain.handle('members:get', async (_e, packId: string) => {
-    const { data } = await axios.get(`${API}/modpacks/${packId}/members`)
+    const { data } = await axios.get(`${API}/modpacks/${packId}/members`, { headers: authHeader() })
     return data
   })
 

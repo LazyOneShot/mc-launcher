@@ -22,7 +22,7 @@ function progressToRenderer(win: BrowserWindow | null, evt: string, data: any) {
 
 export function modpackHandlers() {
   ipcMain.handle('modpacks:get', async (_e, id: string) => {
-    const { data } = await axios.get(`${API}/modpacks/${id}`)
+    const { data } = await axios.get(`${API}/modpacks/${id}`, { headers: authHeader() })
     return data
   })
 
