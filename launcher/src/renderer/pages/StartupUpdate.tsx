@@ -28,14 +28,12 @@ export default function StartupUpdate() {
       nav('/login')
     }
 
-    // Set up listeners
+    // Set up listeners. The actual download/install calls now live in the
+    // main process (gated on being within the startup window) — this just
+    // reflects that state, so there's no risk of double-triggering.
     window.api.onUpdateAvailable((d: { version: string }) => {
       setUpdateVersion(d.version)
       setPhase('downloading')
-      window.api.downloadUpdate().catch((e: any) => {
-        setError(e?.message || 'Download failed')
-        setPhase('error')
-      })
     })
 
     window.api.onUpdateProgress((d: { percent: number }) => {
@@ -44,10 +42,6 @@ export default function StartupUpdate() {
 
     window.api.onUpdateDownloaded(() => {
       setPhase('installing')
-      // Small delay so the user sees the message before the app restarts
-      setTimeout(() => {
-        window.api.installUpdate()
-      }, 1500)
     })
 
     window.api.onUpdateNone(() => {

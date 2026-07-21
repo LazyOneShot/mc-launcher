@@ -9,6 +9,15 @@ const CHECK_INTERVAL_MS = 5 * 60 * 1000  // 5 minutes
 
 let periodicCheckTimer: NodeJS.Timeout | null = null
 
+// True only while the blocking startup screen is showing — that's the one
+// moment auto-download-then-restart is safe, since the user hasn't started
+// doing anything yet. The renderer used to make this call itself from a
+// listener that never got cleaned up on navigation, so it kept firing (and
+// silently restarting the app) during the periodic background check too.
+// This flag is main-process state instead, so there's exactly one source of
+// truth regardless of which renderer listeners happen to still be attached.
+let inStartupWindow = true
+
 export function updateHandlers() {
   autoUpdater.autoDownload = false
   autoUpdater.autoInstallOnAppQuit = true
@@ -22,6 +31,12 @@ export function updateHandlers() {
   autoUpdater.on('update-available', (info) => {
     console.log('[updater] Update available:', info.version)
     sendToRenderer('update:available', { version: info.version, releaseNotes: info.releaseNotes })
+    if (inStartupWindow) {
+      autoUpdater.downloadUpdate().catch(err => {
+        console.error('[updater] Auto-download failed:', err)
+        sendToRenderer('update:error', { message: err.message })
+      })
+    }
   })
 
   autoUpdater.on('update-not-available', () => {
@@ -46,6 +61,9 @@ export function updateHandlers() {
   autoUpdater.on('update-downloaded', (info) => {
     console.log('[updater] Update downloaded:', info.version)
     sendToRenderer('update:downloaded', { version: info.version })
+    if (inStartupWindow) {
+      setTimeout(() => autoUpdater.quitAndInstall(false, true), 1500)
+    }
   })
 
   ipcMain.handle('update:check', async () => {
@@ -84,6 +102,7 @@ export function updateHandlers() {
 
   // Start the periodic background check
   ipcMain.handle('update:startPeriodicCheck', () => {
+    inStartupWindow = false   // past the startup screen — banner-only from here on
     if (periodicCheckTimer) return
     if (!app.isPackaged || !AUTO_UPDATE_SUPPORTED) return
 
