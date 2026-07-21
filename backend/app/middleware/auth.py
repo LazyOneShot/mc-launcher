@@ -1,6 +1,7 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
+from datetime import datetime, timedelta
 import httpx
 from app.config import settings
 
@@ -37,7 +38,12 @@ async def verify_microsoft_token(ms_token: str) -> dict:
         return profile
 
 def create_jwt(mc_uuid: str, mc_name: str) -> str:
-    return jwt.encode({"sub": mc_uuid, "name": mc_name}, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+    expire = datetime.utcnow() + timedelta(minutes=settings.jwt_expire_minutes)
+    return jwt.encode(
+        {"sub": mc_uuid, "name": mc_name, "exp": expire},
+        settings.jwt_secret,
+        algorithm=settings.jwt_algorithm,
+    )
 
 def current_user(creds: HTTPAuthorizationCredentials = Depends(bearer)) -> dict:
     try:

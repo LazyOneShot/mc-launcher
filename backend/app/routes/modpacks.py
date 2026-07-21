@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from sqlmodel import Session, select
 from datetime import datetime
 import hashlib
@@ -12,8 +12,12 @@ from app.models.modpack import (
 from app.middleware.auth import current_user
 from app.storage.minio import upload_mod, delete_mod, presigned_url
 from app.audit import log_action
+from app.validation import validate_pack_id, validate_mod_filename
+from app.limiter import limiter
 
 router = APIRouter(prefix="/modpacks", tags=["modpacks"])
+
+MAX_UPLOAD_BYTES = 200 * 1024 * 1024  # matches external.py's from-URL cap
 
 VALID_VISIBILITY = {"public", "private"}
 VALID_JOIN_MODE = {"open", "request"}
@@ -77,10 +81,12 @@ async def _backfill_owner_username(pack: Modpack, session: Session):
 
 
 @router.get("/{pack_id}", response_model=ModpackRead)
-async def get_modpack(pack_id: str, session: Session = Depends(get_session)):
+async def get_modpack(pack_id: str, user=Depends(current_user), session: Session = Depends(get_session)):
     pack = session.get(Modpack, pack_id)
     if not pack:
         raise HTTPException(404, "Modpack not found")
+    if pack.visibility != "public" and user_role(pack, user, session) is None:
+        raise HTTPException(403, "You must be a member of this pack to view it")
     if not pack.owner_username:
         await _backfill_owner_username(pack, session)
     for mod in pack.mods:
@@ -89,7 +95,9 @@ async def get_modpack(pack_id: str, session: Session = Depends(get_session)):
 
 
 @router.post("", response_model=ModpackRead)
-def create_modpack(body: ModpackCreate, user=Depends(current_user), session: Session = Depends(get_session)):
+@limiter.limit("10/minute")
+def create_modpack(request: Request, body: ModpackCreate, user=Depends(current_user), session: Session = Depends(get_session)):
+    validate_pack_id(body.id)
     if session.get(Modpack, body.id):
         raise HTTPException(409, "Pack ID already taken")
     _validate_policy_fields(body.visibility, body.join_mode)
@@ -102,7 +110,8 @@ def create_modpack(body: ModpackCreate, user=Depends(current_user), session: Ses
 
 
 @router.post("/{pack_id}/join")
-def join_modpack(pack_id: str, user=Depends(current_user), session: Session = Depends(get_session)):
+@limiter.limit("20/minute")
+def join_modpack(request: Request, pack_id: str, user=Depends(current_user), session: Session = Depends(get_session)):
     pack = session.get(Modpack, pack_id)
     if not pack:
         raise HTTPException(404, "Modpack not found")
@@ -240,17 +249,21 @@ def delete_modpack(pack_id: str, user=Depends(current_user), session: Session = 
 
 
 @router.post("/{pack_id}/mods", response_model=ModRead)
-async def add_mod(pack_id: str, file: UploadFile = File(...), user=Depends(current_user), session: Session = Depends(get_session)):
+@limiter.limit("30/minute")
+async def add_mod(request: Request, pack_id: str, file: UploadFile = File(...), user=Depends(current_user), session: Session = Depends(get_session)):
     pack = session.get(Modpack, pack_id)
     if not pack:
         raise HTTPException(404)
     if not can_edit(pack, user, session):
         raise HTTPException(403, "You don't have permission to modify this pack")
 
+    filename = validate_mod_filename(file.filename)
     data = await file.read()
-    key, sha256, size = upload_mod(pack_id, file.filename, data)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "Mod file exceeds size limit")
+    key, sha256, size = upload_mod(pack_id, filename, data)
     mod = Mod(
-        filename=file.filename,
+        filename=filename,
         sha256=sha256,
         sha1=hashlib.sha1(data).hexdigest(),
         size_bytes=size,
@@ -260,7 +273,7 @@ async def add_mod(pack_id: str, file: UploadFile = File(...), user=Depends(curre
     )
     session.add(mod)
     pack.updated_at = datetime.utcnow()
-    log_action(session, pack_id, user, "mod.add", target=file.filename)
+    log_action(session, pack_id, user, "mod.add", target=filename)
     session.commit()
     session.refresh(mod)
     return mod

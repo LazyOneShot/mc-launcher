@@ -3,8 +3,15 @@ services:
   api:
     build: .
     restart: unless-stopped
+    # Bound to all interfaces. Rate limiting keys on X-Forwarded-For (see
+    # Dockerfile) on the assumption that the only thing that can reach this
+    # port is Nginx Proxy Manager — verify the host firewall actually blocks
+    # 8000 from the public internet, otherwise that header is spoofable and
+    # rate limits become bypassable per-request.
     ports:
       - "8000:8000"
+    mem_limit: 1g
+    cpus: "1.0"
     env_file:
       - .env
     volumes:

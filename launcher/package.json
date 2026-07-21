@@ -1,6 +1,6 @@
 {
   "name": "mc-launcher",
-  "version": "0.4.11",
+  "version": "0.4.12",
   "description": "Custom Minecraft launcher with cloud modpacks",
   "author": "LazyOneShot",
   "main": "out/main/index.js",
