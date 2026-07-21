@@ -1,0 +1,43 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+
+jobs:
+  deploy:
+    # Only ever triggered by pushes to main in this repo — never pull_request —
+    # so a self-hosted runner here can't be reached by an external PR.
+    runs-on: [self-hosted, backend-deploy]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync backend source to deploy directory
+        # No --delete: this only adds/updates files tracked in git. It never
+        # removes anything, so mc_launcher.db, .env, and any other untracked
+        # file already on the VM are left alone no matter what.
+        run: |
+          rsync -av \
+            --exclude '.env' \
+            --exclude 'mc_launcher.db' \
+            --exclude 'mc_launcher.db.bak' \
+            --exclude '__pycache__/' \
+            backend/ /opt/mc-launcher/backend/
+
+      - name: Rebuild and restart
+        working-directory: /opt/mc-launcher/backend
+        run: docker compose up -d --build
+
+      - name: Wait for health check
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf https://mc-api.daboismc.win/health > /dev/null; then
+              echo "Backend healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Backend did not become healthy within 60s after deploy"
+          exit 1
