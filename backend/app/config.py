@@ -27,5 +27,13 @@ class Settings(BaseSettings):
 settings = Settings()
 
 
+def _normalize_uuid(u: str) -> str:
+    return u.strip().replace("-", "").lower()
+
+
 def is_admin(uuid: str) -> bool:
-    return uuid in {u.strip() for u in settings.admin_uuids.split(",") if u.strip()}
+    # Mojang's own APIs aren't consistent about dashes (some endpoints return
+    # dashed, some don't) — normalize both sides so a format mismatch alone
+    # can never cause a false "not admin".
+    admins = {_normalize_uuid(u) for u in settings.admin_uuids.split(",") if u.strip()}
+    return _normalize_uuid(uuid) in admins
