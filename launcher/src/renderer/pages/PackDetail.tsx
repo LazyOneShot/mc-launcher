@@ -114,6 +114,18 @@ export default function PackDetail() {
     window.api.getMcVersions().then((vs: string[]) => { if (vs?.length > 0) setMcVersions(vs) })
   }, [id])
 
+  // Keep mods/members/servers fresh while someone's sitting on the page —
+  // deliberately doesn't touch editForm so it can't clobber an in-progress edit.
+  useEffect(() => {
+    if (!id) return
+    const interval = setInterval(() => {
+      window.api.getModpack(id).then((p: any) => setPack(pk => pk ? { ...pk, ...p } : p))
+      window.api.getMembers(id).then(setMembers)
+      window.api.listServers(id).then(setServers)
+    }, 30000)
+    return () => clearInterval(interval)
+  }, [id])
+
   useEffect(() => {
     if (!editForm.mc_version || editForm.loader !== 'forge') { setForgeVersions([]); return }
     setLoadingForge(true)
