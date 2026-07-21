@@ -15,10 +15,10 @@ function authHeader() {
 export function adminHandlers() {
   ipcMain.handle('admin:checkAccess', async () => {
     try {
-      await axios.get(`${API}/admin/check`, { headers: authHeader() })
-      return true
+      const { data } = await axios.get(`${API}/admin/check`, { headers: authHeader() })
+      return { isAdmin: true, openReportCount: data.open_report_count as number }
     } catch {
-      return false
+      return { isAdmin: false, openReportCount: 0 }
     }
   })
 
@@ -63,6 +63,31 @@ export function adminHandlers() {
 
   ipcMain.handle('admin:forceDeletePack', async (_e, packId: string) => {
     await axios.delete(`${API}/admin/packs/${packId}`, { headers: authHeader() })
+    return true
+  })
+
+  ipcMain.handle('admin:listAllPacks', async () => {
+    const { data } = await axios.get(`${API}/admin/packs`, { headers: authHeader() })
+    return data
+  })
+
+  ipcMain.handle('admin:freezePack', async (_e, packId: string) => {
+    await axios.post(`${API}/admin/packs/${packId}/freeze`, {}, { headers: authHeader() })
+    return true
+  })
+
+  ipcMain.handle('admin:unfreezePack', async (_e, packId: string) => {
+    await axios.post(`${API}/admin/packs/${packId}/unfreeze`, {}, { headers: authHeader() })
+    return true
+  })
+
+  ipcMain.handle('admin:startAssist', async (_e, packId: string) => {
+    const { data } = await axios.post(`${API}/admin/packs/${packId}/assist`, {}, { headers: authHeader() })
+    return data
+  })
+
+  ipcMain.handle('admin:stopAssist', async (_e, packId: string) => {
+    await axios.delete(`${API}/admin/packs/${packId}/assist`, { headers: authHeader() })
     return true
   })
 

@@ -45,7 +45,11 @@ const ACTION_LABELS: Record<string, string> = {
   'member.role_change': 'changed role for',
   'server.add':         'added server',
   'server.remove':      'removed server',
-  'server.update':      'edited server'
+  'server.update':      'edited server',
+  'admin.freeze':       'froze this pack for review',
+  'admin.unfreeze':     'unfroze this pack',
+  'admin.assist_start': 'started assisting (granted editor access)',
+  'admin.assist_end':   'stopped assisting',
 }
 
 function actionColor(action: string): string {
@@ -84,6 +88,7 @@ export default function PackDetail() {
   const [newMember, setNewMember] = useState('')
   const [memberError, setMemberError] = useState('')
   const [session, setSession] = useState<any>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [tab, setTab] = useState<Tab>('mods')
   const [modSearch, setModSearch] = useState('')
   const [editForm, setEditForm] = useState({ name: '', description: '', mc_version: '', loader: '', loader_version: '', visibility: 'private', join_mode: 'open' })
@@ -113,6 +118,7 @@ export default function PackDetail() {
     window.api.getMembers(id).then(setMembers)
     window.api.listServers(id).then(setServers)
     window.api.getSession().then(setSession)
+    window.api.checkAdminAccess().then((r: any) => setIsAdmin(r.isAdmin))
     window.api.getLaunchOptions(id).then((opts: LaunchOptions | null) => { if (opts) setLaunchOpts(opts) })
     window.api.onLaunchProgress((msg: string) => setLog(l => [...l, msg]))
     window.api.onSyncProgress((d: any) => setSyncProgress(d))
@@ -148,6 +154,8 @@ export default function PackDetail() {
   const myMembership = members.find(m => session && m.minecraft_uuid === session.minecraft_uuid)
   const myRole = isOwner ? 'owner' : myMembership?.role || 'viewer'
   const canEdit = myRole === 'owner' || myRole === 'editor'
+  const canWrite = canEdit && (!pack?.frozen || isAdmin)
+  const ownerCanWrite = isOwner && (!pack?.frozen || isAdmin)
 
   // Ping each server whenever the tab is opened (including switching back to it).
   useEffect(() => {
@@ -246,11 +254,16 @@ export default function PackDetail() {
 
   const handleSaveSettings = async () => {
     if (!id) return
-    if (isOwner) {
-      const updated: any = await window.api.updateModpack(id, editForm)
-      setPack(p => p ? { ...p, ...updated } : p)
-      setAuditLoaded(false)
+    if (ownerCanWrite) {
+      try {
+        const updated: any = await window.api.updateModpack(id, editForm)
+        setPack(p => p ? { ...p, ...updated } : p)
+        setAuditLoaded(false)
+      } catch (e: any) {
+        alert(e?.response?.data?.detail || 'Failed to save pack settings')
+      }
     }
+    // Local launch options always save regardless of pack-level freeze/permission state.
     await window.api.setLaunchOptions(id, launchOpts)
     setSavedMsg('Saved!')
     setTimeout(() => setSavedMsg(''), 2000)
@@ -266,6 +279,13 @@ export default function PackDetail() {
     if (!id || !confirm(`Leave "${pack?.name}"?`)) return
     await window.api.leaveModpack(id)
     nav('/home')
+  }
+
+  const handleStopAssist = async () => {
+    if (!id || !confirm('Stop assisting on this pack? This drops your editor access (you can still view it as an admin).')) return
+    await window.api.stopAssist(id)
+    await refreshPack()
+    window.api.getMembers(id).then(setMembers)
   }
 
   const submitReport = async (reason: string) => {
@@ -358,12 +378,24 @@ export default function PackDetail() {
     <div className="page">
       <button onClick={() => nav('/home')} className="back-link">← Back</button>
 
+      {pack.frozen && (
+        <div style={{
+          background:'#3b2708', border:'1px solid #7a5a0e', color:'#fbbf24',
+          padding:'10px 16px', borderRadius:8, marginBottom:16, fontSize:13, fontWeight:600
+        }}>
+          🔒 This pack is frozen pending admin review — no changes can be made until it's unfrozen.
+        </div>
+      )}
+
       <div className="pack-header">
         <div>
           <h1>{pack.name}</h1>
           <p className="pack-meta">
             {pack.mc_version} • {pack.loader} {pack.loader_version || <span style={{ color:'#6b6b8a' }}>(latest)</span>}
             <span className="badge" style={{ marginLeft:8 }}>{myRole}</span>
+            {isAdmin && !isOwner && myRole === 'editor' && (
+              <span className="badge" style={{ marginLeft:6, background:'#1e293b', color:'#8888aa' }}>assisting</span>
+            )}
           </p>
           {pack.description && <p style={{ color:'#8888aa', fontSize:13, marginTop:4, marginBottom:6 }}>{pack.description}</p>}
           <p className="pack-id">
@@ -372,7 +404,14 @@ export default function PackDetail() {
               onClick={() => navigator.clipboard.writeText(pack.id)}>⧉</button>
           </p>
         </div>
-        <button onClick={() => setReportTarget({ kind: 'pack' })} className="icon-btn" title="Report this pack">⚑</button>
+        <div style={{ display:'flex', gap:6, alignItems:'flex-start' }}>
+          {isAdmin && !isOwner && myRole === 'editor' && (
+            <button onClick={handleStopAssist} className="btn btn-secondary" style={{ padding:'6px 12px', fontSize:12 }}>
+              Stop Assisting
+            </button>
+          )}
+          <button onClick={() => setReportTarget({ kind: 'pack' })} className="icon-btn" title="Report this pack">⚑</button>
+        </div>
       </div>
 
       <div className="action-bar" style={{ flexWrap:'wrap' }}>
@@ -439,14 +478,14 @@ export default function PackDetail() {
                   disabled={pack.mods.length === 0}>
                   Check Updates
                 </button>
-                <button onClick={() => setShowModrinth(true)} className="btn btn-secondary">
+                <button onClick={() => setShowModrinth(true)} disabled={!canWrite} className="btn btn-secondary">
                   Browse Modrinth
                 </button>
-                <button onClick={handleUpload} disabled={bulkProgress?.status === 'uploading'} className="btn btn-primary">
+                <button onClick={handleUpload} disabled={bulkProgress?.status === 'uploading' || !canWrite} className="btn btn-primary">
                   {bulkProgress?.status === 'uploading' ? 'Uploading...' : '+ Upload'}
                 </button>
                 {selectedMods.size > 0 && (
-                  <button onClick={handleRemoveSelected} className="btn btn-danger">
+                  <button onClick={handleRemoveSelected} disabled={!canWrite} className="btn btn-danger">
                     Remove Selected ({selectedMods.size})
                   </button>
                 )}
@@ -478,7 +517,7 @@ export default function PackDetail() {
             </div>
           )}
 
-          {canEdit && filteredMods.length > 0 && (
+          {canWrite && filteredMods.length > 0 && (
             <label style={{ display:'flex', alignItems:'center', gap:6, marginBottom:8, fontSize:12, color:'#8888aa', cursor:'pointer' }}>
               <input type="checkbox"
                 checked={filteredMods.every(m => selectedMods.has(m.id))}
@@ -491,7 +530,7 @@ export default function PackDetail() {
             {filteredMods.map(mod => (
               <div key={mod.id} className="mod-row">
                 <span className="mod-filename" style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  {canEdit && (
+                  {canWrite && (
                     <input type="checkbox" checked={selectedMods.has(mod.id)} onChange={() => toggleModSelected(mod.id)} />
                   )}
                   {mod.filename}
@@ -508,7 +547,7 @@ export default function PackDetail() {
                         </svg>
                     }
                   </button>
-                  {canEdit && (
+                  {canWrite && (
                     <button className="icon-btn" title="Remove" onClick={() => handleRemoveMod(mod.id, mod.filename)}>✕</button>
                   )}
                 </div>
@@ -526,7 +565,7 @@ export default function PackDetail() {
       {/* SERVERS */}
       {tab === 'servers' && (
         <div>
-          {canEdit && (
+          {canWrite && (
             <div className="card" style={{ marginBottom:16 }}>
               <h3 style={{ fontSize:14, color:'#a5b4fc', marginBottom:12 }}>ADD SERVER</h3>
               <div style={{ display:'flex', gap:8, alignItems:'flex-end' }}>
@@ -555,7 +594,7 @@ export default function PackDetail() {
 
           {servers.length === 0 && (
             <div style={{ padding:24, textAlign:'center', color:'#6b6b8a', fontSize:13, background:'#0d0e1e', border:'1px solid #22243d', borderRadius:8 }}>
-              No servers added yet.{canEdit ? ' Add one above to enable one-click join buttons.' : ''}
+              No servers added yet.{canWrite ? ' Add one above to enable one-click join buttons.' : ''}
             </div>
           )}
 
@@ -579,7 +618,7 @@ export default function PackDetail() {
                     </span>
                   )}
                 </div>
-                {canEdit && <button onClick={() => handleDeleteServer(s.id)} className="icon-btn">✕</button>}
+                {canWrite && <button onClick={() => handleDeleteServer(s.id)} className="icon-btn">✕</button>}
               </div>
             )
           })}
@@ -593,7 +632,7 @@ export default function PackDetail() {
             <>
               <div style={{ display:'flex', gap:8, marginBottom:12 }}>
                 <input className="input" style={{ flex:1 }} placeholder="Minecraft username..." value={newMember} onChange={e => setNewMember(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddMember()} />
-                <button onClick={handleAddMember} className="btn btn-primary">Add Editor</button>
+                <button onClick={handleAddMember} disabled={!ownerCanWrite} className="btn btn-primary">Add Editor</button>
               </div>
               {memberError && <p style={{ color:'#f87171', fontSize:13, marginBottom:10 }}>{memberError}</p>}
             </>
@@ -606,8 +645,8 @@ export default function PackDetail() {
                 <div key={req.id} className="member-row">
                   <span style={{ fontWeight:600 }}>{req.minecraft_username}</span>
                   <div style={{ display:'flex', gap:6 }}>
-                    <button onClick={() => handleApproveRequest(req)} className="btn btn-success" style={{ padding:'6px 12px', fontSize:12 }}>Approve</button>
-                    <button onClick={() => handleDenyRequest(req)} className="btn btn-secondary" style={{ padding:'6px 12px', fontSize:12 }}>Deny</button>
+                    <button onClick={() => handleApproveRequest(req)} disabled={!ownerCanWrite} className="btn btn-success" style={{ padding:'6px 12px', fontSize:12 }}>Approve</button>
+                    <button onClick={() => handleDenyRequest(req)} disabled={!ownerCanWrite} className="btn btn-secondary" style={{ padding:'6px 12px', fontSize:12 }}>Deny</button>
                   </div>
                 </div>
               ))}
@@ -641,17 +680,17 @@ export default function PackDetail() {
                 {isOwner && (
                   <>
                     {mem.role === 'viewer' ? (
-                      <button onClick={() => handleChangeRole(mem.minecraft_uuid, 'editor')}
+                      <button onClick={() => handleChangeRole(mem.minecraft_uuid, 'editor')} disabled={!ownerCanWrite}
                         className="btn btn-success" style={{ padding:'6px 12px', fontSize:12 }}>Promote to Editor</button>
                     ) : (
                       <>
-                        <button onClick={() => handleChangeRole(mem.minecraft_uuid, 'viewer')}
+                        <button onClick={() => handleChangeRole(mem.minecraft_uuid, 'viewer')} disabled={!ownerCanWrite}
                           className="btn btn-secondary" style={{ padding:'6px 12px', fontSize:12 }}>Demote to Viewer</button>
-                        <button onClick={() => handleTransfer(mem.minecraft_uuid, mem.minecraft_username)}
+                        <button onClick={() => handleTransfer(mem.minecraft_uuid, mem.minecraft_username)} disabled={!ownerCanWrite}
                           className="btn btn-warning" style={{ padding:'6px 12px', fontSize:12 }}>Transfer Ownership</button>
                       </>
                     )}
-                    <button onClick={() => handleRemoveMember(mem.minecraft_uuid)} className="icon-btn">✕</button>
+                    <button onClick={() => handleRemoveMember(mem.minecraft_uuid)} disabled={!ownerCanWrite} className="icon-btn">✕</button>
                   </>
                 )}
                 {session && mem.minecraft_uuid !== session.minecraft_uuid && (
@@ -804,7 +843,7 @@ export default function PackDetail() {
             <div className="card" style={{ borderColor:'#7f1d1d' }}>
               <h3 style={{ color:'#f87171', fontSize:14, marginBottom:8 }}>DANGER ZONE</h3>
               <p style={{ color:'#8888aa', fontSize:13, marginBottom:12 }}>Deleting a pack permanently removes all mods and cannot be undone.</p>
-              <button onClick={handleDelete} className="btn btn-danger">Delete Pack</button>
+              <button onClick={handleDelete} disabled={!ownerCanWrite} className="btn btn-danger">Delete Pack</button>
             </div>
           ) : (
             <div className="card" style={{ borderColor:'#7f1d1d' }}>

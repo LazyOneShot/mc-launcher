@@ -17,6 +17,7 @@ export default function Home() {
   const [joinMsg, setJoinMsg] = useState('')
   const [session, setSession] = useState<any>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [openReportCount, setOpenReportCount] = useState(0)
   const [reportPack, setReportPack] = useState<ModpackMeta | null>(null)
   const nav = useNavigate()
 
@@ -24,11 +25,16 @@ export default function Home() {
     window.api.listMyModpacks().then(setPacks)
     window.api.listMyJoinRequests().then(setMyRequests)
     window.api.getSession().then(setSession)
-    window.api.checkAdminAccess().then(setIsAdmin)
-    // Picks up newly-approved join requests and role changes without a restart.
+    const checkAdmin = () => window.api.checkAdminAccess().then((r: any) => {
+      setIsAdmin(r.isAdmin)
+      setOpenReportCount(r.openReportCount)
+    })
+    checkAdmin()
+    // Picks up newly-approved join requests, role changes, and new reports without a restart.
     const interval = setInterval(() => {
       window.api.listMyModpacks().then(setPacks)
       window.api.listMyJoinRequests().then(setMyRequests)
+      checkAdmin()
     }, 30000)
     return () => clearInterval(interval)
   }, [])
@@ -68,7 +74,17 @@ export default function Home() {
           {session && <p style={{ color:'#8888aa', fontSize:13, marginTop:2 }}>Signed in as {session.minecraft_username}</p>}
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          {isAdmin && <button onClick={() => nav('/admin')} className="btn btn-warning">Admin</button>}
+          {isAdmin && (
+            <button onClick={() => nav('/admin')} className="btn btn-warning" style={{ position:'relative' }}>
+              Admin
+              {openReportCount > 0 && (
+                <span style={{
+                  marginLeft:6, background:'#ef4444', color:'#fff', borderRadius:10,
+                  padding:'1px 7px', fontSize:11, fontWeight:700
+                }}>{openReportCount}</span>
+              )}
+            </button>
+          )}
           <button onClick={() => nav('/browse')} className="btn btn-secondary">Browse Public Packs</button>
           <button onClick={() => nav('/create')} className="btn btn-primary">+ Create Pack</button>
           <button onClick={handleLogout} className="btn btn-secondary">Sign out</button>

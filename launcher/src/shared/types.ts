@@ -22,6 +22,7 @@ export interface ModpackMeta {
   updated_at: string
   my_role?: string
   pending_request_count?: number
+  frozen?: boolean
 }
 
 export interface MyJoinRequest {
@@ -39,6 +40,18 @@ export interface PublicPack {
   loader: string
   owner_username: string
   join_mode: 'open' | 'request'
+  frozen?: boolean
+}
+
+export interface AdminPack {
+  id: string
+  name: string
+  owner_username: string
+  visibility: 'public' | 'private'
+  join_mode: 'open' | 'request'
+  frozen: boolean
+  member_count: number
+  created_at: string
 }
 
 export interface JoinRequest {

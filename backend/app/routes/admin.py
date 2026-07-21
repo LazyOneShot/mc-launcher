@@ -3,11 +3,12 @@ from sqlmodel import Session, select
 import httpx
 
 from app.models.modpack import (
-    Modpack, BannedUser, BannedUserRead, BanRequest,
-    Report, ReportRead,
+    Modpack, ModpackMember, BannedUser, BannedUserRead, BanRequest,
+    Report, ReportRead, AdminPackRead,
 )
 from app.middleware.auth import current_user
 from app.config import is_admin
+from app.audit import log_action
 from app.routes.modpacks import delete_pack_and_data
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -37,9 +38,10 @@ async def lookup_minecraft_uuid(username: str):
 
 
 @router.get("/check")
-def check_admin_access(user=Depends(current_user)):
+def check_admin_access(user=Depends(current_user), session: Session = Depends(get_session)):
     require_admin(user)
-    return {"is_admin": True}
+    open_reports = len(session.exec(select(Report).where(Report.status == "open")).all())
+    return {"is_admin": True, "open_report_count": open_reports}
 
 
 @router.get("/bans", response_model=list[BannedUserRead])
@@ -125,4 +127,85 @@ def force_delete_pack(pack_id: str, user=Depends(current_user), session: Session
     if not pack:
         raise HTTPException(404, "Modpack not found")
     delete_pack_and_data(pack, session)
+    return {"ok": True}
+
+
+@router.get("/packs", response_model=list[AdminPackRead])
+def list_all_packs(user=Depends(current_user), session: Session = Depends(get_session)):
+    require_admin(user)
+    packs = session.exec(select(Modpack).order_by(Modpack.created_at.desc())).all()
+    result = []
+    for pack in packs:
+        member_count = len(session.exec(select(ModpackMember).where(ModpackMember.pack_id == pack.id)).all())
+        result.append(AdminPackRead(
+            id=pack.id, name=pack.name, owner_username=pack.owner_username,
+            visibility=pack.visibility, join_mode=pack.join_mode, frozen=pack.frozen,
+            member_count=member_count, created_at=pack.created_at,
+        ))
+    return result
+
+
+@router.post("/packs/{pack_id}/freeze")
+def freeze_pack(pack_id: str, user=Depends(current_user), session: Session = Depends(get_session)):
+    require_admin(user)
+    pack = session.get(Modpack, pack_id)
+    if not pack:
+        raise HTTPException(404, "Modpack not found")
+    pack.frozen = True
+    log_action(session, pack_id, user, "admin.freeze", target=user["name"])
+    session.commit()
+    return {"ok": True}
+
+
+@router.post("/packs/{pack_id}/unfreeze")
+def unfreeze_pack(pack_id: str, user=Depends(current_user), session: Session = Depends(get_session)):
+    require_admin(user)
+    pack = session.get(Modpack, pack_id)
+    if not pack:
+        raise HTTPException(404, "Modpack not found")
+    pack.frozen = False
+    log_action(session, pack_id, user, "admin.unfreeze", target=user["name"])
+    session.commit()
+    return {"ok": True}
+
+
+@router.post("/packs/{pack_id}/assist")
+def start_assist(pack_id: str, user=Depends(current_user), session: Session = Depends(get_session)):
+    require_admin(user)
+    pack = session.get(Modpack, pack_id)
+    if not pack:
+        raise HTTPException(404, "Modpack not found")
+    if pack.owner == user["uuid"]:
+        return {"ok": True, "role": "owner"}
+
+    existing = session.exec(select(ModpackMember).where(
+        ModpackMember.pack_id == pack_id,
+        ModpackMember.minecraft_uuid == user["uuid"],
+    )).first()
+    if existing:
+        return {"ok": True, "role": existing.role}
+
+    session.add(ModpackMember(pack_id=pack_id, minecraft_uuid=user["uuid"], minecraft_username=user["name"], role="editor"))
+    log_action(session, pack_id, user, "admin.assist_start", target=user["name"])
+    session.commit()
+    return {"ok": True, "role": "editor"}
+
+
+@router.delete("/packs/{pack_id}/assist")
+def stop_assist(pack_id: str, user=Depends(current_user), session: Session = Depends(get_session)):
+    require_admin(user)
+    pack = session.get(Modpack, pack_id)
+    if not pack:
+        raise HTTPException(404, "Modpack not found")
+
+    member = session.exec(select(ModpackMember).where(
+        ModpackMember.pack_id == pack_id,
+        ModpackMember.minecraft_uuid == user["uuid"],
+    )).first()
+    if not member:
+        raise HTTPException(404, "You don't have an active assist grant on this pack")
+
+    session.delete(member)
+    log_action(session, pack_id, user, "admin.assist_end", target=user["name"])
+    session.commit()
     return {"ok": True}

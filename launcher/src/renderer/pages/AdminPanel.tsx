@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { BannedUser, Report } from '../../shared/types'
+import type { BannedUser, Report, AdminPack } from '../../shared/types'
 
-type Tab = 'reports' | 'bans'
+type Tab = 'reports' | 'bans' | 'packs'
 
 export default function AdminPanel() {
   const nav = useNavigate()
@@ -10,18 +10,20 @@ export default function AdminPanel() {
   const [tab, setTab] = useState<Tab>('reports')
   const [reports, setReports] = useState<Report[]>([])
   const [bans, setBans] = useState<BannedUser[]>([])
+  const [packs, setPacks] = useState<AdminPack[]>([])
   const [banUsername, setBanUsername] = useState('')
   const [banReason, setBanReason] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
-    window.api.checkAdminAccess().then((ok: boolean) => setAuthorized(ok))
+    window.api.checkAdminAccess().then((r: any) => setAuthorized(r.isAdmin))
   }, [])
 
   useEffect(() => {
     if (!authorized) return
     if (tab === 'reports') window.api.listReports('open').then(setReports)
     if (tab === 'bans') window.api.listBans().then(setBans)
+    if (tab === 'packs') window.api.listAllPacks().then(setPacks)
   }, [authorized, tab])
 
   const handleResolve = async (r: Report) => {
@@ -34,15 +36,21 @@ export default function AdminPanel() {
     setReports(rr => rr.filter(x => x.id !== r.id))
   }
 
-  const handleForcePrivate = async (r: Report) => {
-    await window.api.forcePrivatePack(r.pack_id)
-    alert(`"${r.pack_name}" is now private.`)
+  const handleForcePrivate = async (packId: string, name: string) => {
+    await window.api.forcePrivatePack(packId)
+    alert(`"${name}" is now private.`)
   }
 
-  const handleForceDelete = async (r: Report) => {
-    if (!confirm(`Permanently delete "${r.pack_name}"? This removes all its mods too.`)) return
-    await window.api.forceDeletePack(r.pack_id)
-    setReports(rr => rr.filter(x => x.id !== r.id))
+  const handleForceDelete = async (packId: string, name: string, afterDelete: () => void) => {
+    if (!confirm(`Permanently delete "${name}"? This removes all its mods too.`)) return
+    await window.api.forceDeletePack(packId)
+    afterDelete()
+  }
+
+  const handleFreeze = async (packId: string, frozen: boolean, refresh: () => void) => {
+    if (frozen) await window.api.unfreezePack(packId)
+    else await window.api.freezePack(packId)
+    refresh()
   }
 
   const handleBanFromReport = async (r: Report) => {
@@ -71,6 +79,8 @@ export default function AdminPanel() {
     setBans(bb => bb.filter(x => x.id !== b.id))
   }
 
+  const refreshPacks = () => window.api.listAllPacks().then(setPacks)
+
   if (authorized === null) return <div className="page">Loading...</div>
 
   if (!authorized) return (
@@ -86,7 +96,7 @@ export default function AdminPanel() {
       <h1 style={{ marginBottom:24, fontSize:24 }}>Admin</h1>
 
       <div style={{ display:'flex', gap:2, borderBottom:'1px solid #22243d', marginBottom:16 }}>
-        {(['reports', 'bans'] as Tab[]).map(t => (
+        {(['reports', 'packs', 'bans'] as Tab[]).map(t => (
           <button key={t} onClick={() => setTab(t)}
             style={{
               padding:'10px 20px', background:'none', border:'none',
@@ -95,6 +105,7 @@ export default function AdminPanel() {
               cursor:'pointer', textTransform:'capitalize', fontSize:14, fontWeight:600
             }}>
             {t} {t === 'reports' && `(${reports.length})`}
+            {t === 'packs' && `(${packs.length})`}
             {t === 'bans' && `(${bans.length})`}
           </button>
         ))}
@@ -135,9 +146,39 @@ export default function AdminPanel() {
                 {r.reported_username && (
                   <button onClick={() => handleBanFromReport(r)} className="btn btn-danger" style={{ padding:'6px 12px', fontSize:12 }}>Ban Player</button>
                 )}
-                <button onClick={() => handleForcePrivate(r)} className="btn btn-warning" style={{ padding:'6px 12px', fontSize:12 }}>Make Pack Private</button>
-                <button onClick={() => handleForceDelete(r)} className="btn btn-danger" style={{ padding:'6px 12px', fontSize:12 }}>Delete Pack</button>
+                <button onClick={() => window.api.freezePack(r.pack_id).then(() => alert(`"${r.pack_name}" is now frozen.`))} className="btn btn-warning" style={{ padding:'6px 12px', fontSize:12 }}>Freeze Pack</button>
+                <button onClick={() => handleForcePrivate(r.pack_id, r.pack_name)} className="btn btn-warning" style={{ padding:'6px 12px', fontSize:12 }}>Make Pack Private</button>
+                <button onClick={() => handleForceDelete(r.pack_id, r.pack_name, () => setReports(rr => rr.filter(x => x.id !== r.id)))} className="btn btn-danger" style={{ padding:'6px 12px', fontSize:12 }}>Delete Pack</button>
                 <button onClick={() => handleResolve(r)} className="btn btn-success" style={{ padding:'6px 12px', fontSize:12 }}>Mark Resolved</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'packs' && (
+        <div>
+          <p style={{ color:'#6b6b8a', fontSize:12, marginBottom:12 }}>
+            Freezing blocks every write on a pack (mods, servers, members, settings) except your own, while you investigate.
+            Assisting grants you editor access — logged in that pack's own activity, not hidden.
+          </p>
+          {packs.map(p => (
+            <div key={p.id} className="card" style={{ marginBottom:10 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <div>
+                  <span style={{ fontWeight:600 }}>{p.name}</span>
+                  <span style={{ color:'#6b6b8a', fontSize:12, marginLeft:8 }}>by {p.owner_username} • {p.member_count} member{p.member_count === 1 ? '' : 's'}</span>
+                  {p.frozen && <span className="badge" style={{ background:'#3b2708', color:'#fbbf24', marginLeft:8 }}>frozen</span>}
+                  <span className="badge" style={{ marginLeft:8 }}>{p.visibility}</span>
+                </div>
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap', justifyContent:'flex-end' }}>
+                  <button onClick={() => handleFreeze(p.id, p.frozen, refreshPacks)} className="btn btn-warning" style={{ padding:'6px 12px', fontSize:12 }}>
+                    {p.frozen ? 'Unfreeze' : 'Freeze'}
+                  </button>
+                  <button onClick={() => window.api.startAssist(p.id).then(() => nav(`/pack/${p.id}`))} className="btn btn-secondary" style={{ padding:'6px 12px', fontSize:12 }}>Assist</button>
+                  <button onClick={() => handleForcePrivate(p.id, p.name)} className="btn btn-secondary" style={{ padding:'6px 12px', fontSize:12 }}>Make Private</button>
+                  <button onClick={() => handleForceDelete(p.id, p.name, refreshPacks)} className="btn btn-danger" style={{ padding:'6px 12px', fontSize:12 }}>Delete</button>
+                </div>
               </div>
             </div>
           ))}

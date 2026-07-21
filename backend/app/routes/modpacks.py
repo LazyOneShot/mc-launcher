@@ -14,6 +14,7 @@ from app.storage.minio import upload_mod, delete_mod, presigned_url
 from app.audit import log_action
 from app.validation import validate_pack_id, validate_mod_filename
 from app.limiter import limiter
+from app.config import is_admin
 
 router = APIRouter(prefix="/modpacks", tags=["modpacks"])
 
@@ -48,6 +49,14 @@ def user_role(pack: Modpack, user: dict, session: Session):
 
 def can_edit(pack: Modpack, user: dict, session: Session) -> bool:
     return user_role(pack, user, session) in ("owner", "editor")
+
+
+def require_not_frozen(pack: Modpack, user: dict) -> None:
+    """Shared by every mutating endpoint across modpacks/members/servers/external —
+    a pack under admin review must reject every write except the admin's own,
+    since freeze+assist together is how an admin actively repairs a pack."""
+    if pack.frozen and not is_admin(user["uuid"]):
+        raise HTTPException(423, "This pack is frozen pending review and can't be modified")
 
 
 @router.get("/mine", response_model=list[ModpackWithRole])
@@ -106,7 +115,7 @@ async def get_modpack(pack_id: str, user=Depends(current_user), session: Session
     pack = session.get(Modpack, pack_id)
     if not pack:
         raise HTTPException(404, "Modpack not found")
-    if pack.visibility != "public" and user_role(pack, user, session) is None:
+    if pack.visibility != "public" and user_role(pack, user, session) is None and not is_admin(user["uuid"]):
         raise HTTPException(403, "You must be a member of this pack to view it")
     if not pack.owner_username:
         await _backfill_owner_username(pack, session)
@@ -144,6 +153,7 @@ def join_modpack(request: Request, pack_id: str, user=Depends(current_user), ses
     )).first()
     if existing:
         return {"ok": True, "role": existing.role}
+    require_not_frozen(pack, user)
 
     if pack.join_mode == "request":
         pending = session.exec(select(JoinRequest).where(
@@ -185,6 +195,7 @@ def approve_join_request(pack_id: str, request_id: str, user=Depends(current_use
         raise HTTPException(404, "Modpack not found")
     if pack.owner != user["uuid"]:
         raise HTTPException(403, "Only the pack owner can approve join requests")
+    require_not_frozen(pack, user)
 
     req = session.get(JoinRequest, request_id)
     if not req or req.pack_id != pack_id:
@@ -206,6 +217,7 @@ def deny_join_request(pack_id: str, request_id: str, user=Depends(current_user),
         raise HTTPException(404, "Modpack not found")
     if pack.owner != user["uuid"]:
         raise HTTPException(403, "Only the pack owner can deny join requests")
+    require_not_frozen(pack, user)
 
     req = session.get(JoinRequest, request_id)
     if not req or req.pack_id != pack_id:
@@ -237,6 +249,7 @@ def update_modpack(pack_id: str, body: ModpackUpdate, user=Depends(current_user)
         raise HTTPException(404)
     if pack.owner != user["uuid"]:
         raise HTTPException(403, "Only the owner can edit pack settings")
+    require_not_frozen(pack, user)
     _validate_policy_fields(body.visibility, body.join_mode)
 
     changed = []
@@ -286,6 +299,7 @@ def delete_modpack(pack_id: str, user=Depends(current_user), session: Session = 
         raise HTTPException(404)
     if pack.owner != user["uuid"]:
         raise HTTPException(403, "Only the owner can delete a pack")
+    require_not_frozen(pack, user)
 
     delete_pack_and_data(pack, session)
     return {"ok": True}
@@ -352,6 +366,7 @@ async def add_mod(request: Request, pack_id: str, file: UploadFile = File(...), 
         raise HTTPException(404)
     if not can_edit(pack, user, session):
         raise HTTPException(403, "You don't have permission to modify this pack")
+    require_not_frozen(pack, user)
 
     filename = validate_mod_filename(file.filename)
     data = await file.read()
@@ -382,6 +397,7 @@ def remove_mod(pack_id: str, mod_id: str, user=Depends(current_user), session: S
         raise HTTPException(404)
     if not can_edit(pack, user, session):
         raise HTTPException(403, "You don't have permission to modify this pack")
+    require_not_frozen(pack, user)
 
     mod = session.get(Mod, mod_id)
     if not mod or mod.modpack_id != pack_id:

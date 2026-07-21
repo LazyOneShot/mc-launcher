@@ -8,6 +8,8 @@ from app.models.modpack import (
 )
 from app.middleware.auth import current_user
 from app.audit import log_action
+from app.config import is_admin
+from app.routes.modpacks import require_not_frozen
 
 router = APIRouter(prefix="/modpacks", tags=["members"])
 
@@ -50,7 +52,7 @@ def list_members(pack_id: str, user=Depends(current_user), session: Session = De
     pack = session.get(Modpack, pack_id)
     if not pack:
         raise HTTPException(404, "Modpack not found")
-    if pack.visibility != "public" and user_role(pack, user, session) is None:
+    if pack.visibility != "public" and user_role(pack, user, session) is None and not is_admin(user["uuid"]):
         raise HTTPException(403, "You must be a member of this pack to view its members")
     return session.exec(select(ModpackMember).where(ModpackMember.pack_id == pack_id)).all()
 
@@ -61,6 +63,7 @@ async def add_member(pack_id: str, body: AddMemberRequest, user=Depends(current_
     if not pack:
         raise HTTPException(404, "Modpack not found")
     require_owner(pack, user)
+    require_not_frozen(pack, user)
 
     mc_uuid, mc_name = await lookup_minecraft_uuid(body.minecraft_username)
     existing = session.exec(select(ModpackMember).where(
@@ -86,6 +89,7 @@ def change_role(pack_id: str, member_uuid: str, body: ChangeRoleRequest, user=De
     if not pack:
         raise HTTPException(404)
     require_owner(pack, user)
+    require_not_frozen(pack, user)
     if body.role not in ("editor", "viewer"):
         raise HTTPException(400, "Role must be 'editor' or 'viewer'")
 
@@ -110,6 +114,7 @@ def remove_member(pack_id: str, member_uuid: str, user=Depends(current_user), se
     if not pack:
         raise HTTPException(404)
     require_owner(pack, user)
+    require_not_frozen(pack, user)
 
     member = session.exec(select(ModpackMember).where(
         ModpackMember.pack_id == pack_id,
@@ -152,6 +157,7 @@ def transfer_ownership(pack_id: str, body: TransferOwnershipRequest, user=Depend
     if not pack:
         raise HTTPException(404)
     require_owner(pack, user)
+    require_not_frozen(pack, user)
 
     target = session.exec(select(ModpackMember).where(
         ModpackMember.pack_id == pack_id,

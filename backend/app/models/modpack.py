@@ -146,6 +146,7 @@ class Modpack(SQLModel, table=True):
     owner_username: str = ""
     visibility: str = "private"     # "private" | "public" — whether it's listed in the public directory
     join_mode: str = "open"         # "open" | "request" — whether /join adds instantly or files a request
+    frozen: bool = False            # admin lock while a report is under review — blocks all writes
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     mods: List[Mod] = Relationship(back_populates="modpack")
@@ -185,6 +186,7 @@ class ModpackRead(SQLModel):
     owner_username: str
     visibility: str
     join_mode: str
+    frozen: bool = False
     created_at: datetime
     updated_at: datetime
     mods: List[ModRead] = []
@@ -200,11 +202,23 @@ class PublicModpackRead(SQLModel):
     loader: str
     owner_username: str
     join_mode: str
+    frozen: bool = False
 
 
 class ModpackWithRole(ModpackRead):
     my_role: str
     pending_request_count: int = 0
+
+
+class AdminPackRead(SQLModel):
+    id: str
+    name: str
+    owner_username: str
+    visibility: str
+    join_mode: str
+    frozen: bool
+    member_count: int
+    created_at: datetime
 
 
 class BannedUser(SQLModel, table=True):

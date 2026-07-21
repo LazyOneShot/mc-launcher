@@ -13,6 +13,7 @@ from app.middleware.auth import current_user
 from app.storage.minio import upload_mod, delete_mod, presigned_url, client as minio_client
 from app.audit import log_action
 from app.validation import validate_mod_filename
+from app.routes.modpacks import require_not_frozen
 
 router = APIRouter(prefix="/modpacks", tags=["external"])
 
@@ -81,6 +82,7 @@ async def add_mod_from_url(pack_id: str, body: AddFromUrlRequest, user=Depends(c
         raise HTTPException(404, "Modpack not found")
     if not can_edit(pack, user, session):
         raise HTTPException(403, "You don't have permission to modify this pack")
+    require_not_frozen(pack, user)
 
     _validate_url(body.url)
     filename = validate_mod_filename(body.filename)
@@ -201,6 +203,7 @@ async def apply_update(pack_id: str, mod_id: str, body: ApplyUpdateRequest, user
         raise HTTPException(404, "Modpack not found")
     if not can_edit(pack, user, session):
         raise HTTPException(403, "You don't have permission to modify this pack")
+    require_not_frozen(pack, user)
 
     mod = session.get(Mod, mod_id)
     if not mod or mod.modpack_id != pack_id:

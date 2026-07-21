@@ -6,6 +6,7 @@ from app.models.modpack import (
 )
 from app.middleware.auth import current_user
 from app.audit import log_action
+from app.routes.modpacks import require_not_frozen
 
 router = APIRouter(prefix="/modpacks", tags=["servers"])
 
@@ -44,6 +45,7 @@ def add_server(pack_id: str, body: ServerCreate, user=Depends(current_user), ses
     if not pack:
         raise HTTPException(404, "Modpack not found")
     require_editor(pack, user, session)
+    require_not_frozen(pack, user)
 
     n = len(session.exec(select(ModpackServer).where(ModpackServer.pack_id == pack_id)).all())
     server = ModpackServer(pack_id=pack_id, name=body.name, host=body.host, port=body.port, sort_order=n)
@@ -60,6 +62,7 @@ def update_server(pack_id: str, server_id: str, body: ServerUpdate, user=Depends
     if not pack:
         raise HTTPException(404)
     require_editor(pack, user, session)
+    require_not_frozen(pack, user)
 
     server = session.get(ModpackServer, server_id)
     if not server or server.pack_id != pack_id:
@@ -79,6 +82,7 @@ def delete_server(pack_id: str, server_id: str, user=Depends(current_user), sess
     if not pack:
         raise HTTPException(404)
     require_editor(pack, user, session)
+    require_not_frozen(pack, user)
 
     server = session.get(ModpackServer, server_id)
     if not server or server.pack_id != pack_id:

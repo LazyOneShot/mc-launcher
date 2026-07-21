@@ -72,6 +72,11 @@ contextBridge.exposeInMainWorld('api', {
   dismissReport:      (reportId: string)                    => ipcRenderer.invoke('admin:dismissReport', reportId),
   forcePrivatePack:   (packId: string)                      => ipcRenderer.invoke('admin:forcePrivatePack', packId),
   forceDeletePack:    (packId: string)                       => ipcRenderer.invoke('admin:forceDeletePack', packId),
+  listAllPacks:       ()                                    => ipcRenderer.invoke('admin:listAllPacks'),
+  freezePack:         (packId: string)                      => ipcRenderer.invoke('admin:freezePack', packId),
+  unfreezePack:       (packId: string)                      => ipcRenderer.invoke('admin:unfreezePack', packId),
+  startAssist:        (packId: string)                      => ipcRenderer.invoke('admin:startAssist', packId),
+  stopAssist:         (packId: string)                      => ipcRenderer.invoke('admin:stopAssist', packId),
 
   // Versions
   getMcVersions:      ()                                    => ipcRenderer.invoke('versions:mc'),
