@@ -155,7 +155,6 @@ class Modpack(SQLModel, table=True):
 
 
 class ModpackCreate(SQLModel):
-    id: str
     name: str
     description: str = ""
     mc_version: str

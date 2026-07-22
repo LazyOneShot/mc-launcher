@@ -3,6 +3,8 @@ from sqlmodel import Session, select
 from datetime import datetime
 import hashlib
 import httpx
+import secrets
+import string
 
 from app.models.modpack import (
     Modpack, ModpackCreate, ModpackRead, ModpackUpdate, ModpackWithRole, PublicModpackRead,
@@ -12,11 +14,23 @@ from app.models.modpack import (
 from app.middleware.auth import current_user
 from app.storage.minio import upload_mod, delete_mod, presigned_url
 from app.audit import log_action
-from app.validation import validate_pack_id, validate_mod_filename
+from app.validation import validate_mod_filename
 from app.limiter import limiter
 from app.config import is_admin
 
 router = APIRouter(prefix="/modpacks", tags=["modpacks"])
+
+PACK_ID_ALPHABET = string.ascii_lowercase + string.digits
+
+
+def _generate_pack_id(session: Session) -> str:
+    # Random, not owner-chosen — a public, permanent, first-come slug is a
+    # squatting/impersonation vector once anyone can create a pack.
+    for _ in range(10):
+        candidate = "".join(secrets.choice(PACK_ID_ALPHABET) for _ in range(8))
+        if not session.get(Modpack, candidate):
+            return candidate
+    raise HTTPException(500, "Failed to generate a unique pack ID, please try again")
 
 MAX_UPLOAD_BYTES = 200 * 1024 * 1024  # matches external.py's from-URL cap
 
@@ -127,11 +141,9 @@ async def get_modpack(pack_id: str, user=Depends(current_user), session: Session
 @router.post("", response_model=ModpackRead)
 @limiter.limit("10/minute")
 def create_modpack(request: Request, body: ModpackCreate, user=Depends(current_user), session: Session = Depends(get_session)):
-    validate_pack_id(body.id)
-    if session.get(Modpack, body.id):
-        raise HTTPException(409, "Pack ID already taken")
     _validate_policy_fields(body.visibility, body.join_mode)
-    pack = Modpack(**body.dict(), owner=user["uuid"], owner_username=user["name"])
+    pack_id = _generate_pack_id(session)
+    pack = Modpack(**body.dict(), id=pack_id, owner=user["uuid"], owner_username=user["name"])
     session.add(pack)
     log_action(session, pack.id, user, "pack.create", target=pack.name)
     session.commit()

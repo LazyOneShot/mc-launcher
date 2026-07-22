@@ -3,19 +3,14 @@ Shared input validation for anything that ends up as a path component —
 either a MinIO object key or, on the launcher side, a literal filesystem
 path under the user's app-data directory (see launch.ts / packDir()).
 
-A pack ID or filename that slips a "../" past the backend doesn't just
-corrupt a MinIO key — it becomes a real path-traversal write on every
-machine that syncs the pack. Keep this strict.
+A filename that slips a "../" past the backend doesn't just corrupt a
+MinIO key — it becomes a real path-traversal write on every machine that
+syncs the pack. Keep this strict.
+
+Pack IDs don't need validation here: they're server-generated (see
+_generate_pack_id in routes/modpacks.py), never taken from user input.
 """
-import re
 from fastapi import HTTPException
-
-PACK_ID_RE = re.compile(r"^[a-z0-9-]{1,64}$")
-
-
-def validate_pack_id(pack_id: str) -> None:
-    if not PACK_ID_RE.match(pack_id or ""):
-        raise HTTPException(400, "Pack ID must be 1-64 characters, lowercase letters/numbers/hyphens only")
 
 
 def validate_mod_filename(filename: str) -> str:
