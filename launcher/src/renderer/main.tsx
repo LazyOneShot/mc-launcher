@@ -13,6 +13,7 @@ import Account from './pages/Account'
 import UpdateBanner from './components/UpdateBanner'
 import TitleBar from './components/TitleBar'
 import VersionBadge from './components/VersionBadge'
+import LegalFooter from './components/LegalFooter'
 
 function App() {
   const nav = useNavigate()
@@ -39,6 +40,7 @@ function App() {
         </Routes>
       </div>
       <VersionBadge />
+      <LegalFooter />
     </>
   )
 }

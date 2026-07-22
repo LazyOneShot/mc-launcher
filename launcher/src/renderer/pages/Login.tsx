@@ -52,13 +52,6 @@ export default function Login() {
           <p style={{ color:'#6b6b8a', fontSize:12 }}>Waiting for sign-in...</p>
         </div>
       )}
-
-      <p style={{ color:'#6b6b8a', fontSize:12, marginTop:8 }}>
-        By signing in you agree to the{' '}
-        <a href="https://github.com/LazyOneShot/mc-launcher/blob/main/TERMS.md" target="_blank" rel="noreferrer" style={{ color:'#8888aa' }}>Terms of Service</a>
-        {' '}and{' '}
-        <a href="https://github.com/LazyOneShot/mc-launcher/blob/main/PRIVACY.md" target="_blank" rel="noreferrer" style={{ color:'#8888aa' }}>Privacy Policy</a>.
-      </p>
     </div>
   )
 }
