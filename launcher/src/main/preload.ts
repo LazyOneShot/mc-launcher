@@ -78,6 +78,9 @@ contextBridge.exposeInMainWorld('api', {
   startAssist:        (packId: string)                      => ipcRenderer.invoke('admin:startAssist', packId),
   stopAssist:         (packId: string)                      => ipcRenderer.invoke('admin:stopAssist', packId),
 
+  // Account
+  deleteAccount:      ()                                     => ipcRenderer.invoke('account:delete'),
+
   // Versions
   getMcVersions:      ()                                    => ipcRenderer.invoke('versions:mc'),
   getForgeVersions:   (mc: string)                          => ipcRenderer.invoke('versions:forge', mc),

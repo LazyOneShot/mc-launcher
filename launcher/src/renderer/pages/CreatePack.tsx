@@ -6,10 +6,9 @@ const FALLBACK_MC_VERSIONS = ['1.21.1', '1.20.4', '1.20.1', '1.19.4', '1.18.2']
 
 export default function CreatePack() {
   const nav = useNavigate()
-  const [form, setForm] = useState({ name:'', id:'', description:'', mc_version:'1.20.1', loader:'forge', loader_version:'', visibility:'private', join_mode:'open' })
+  const [form, setForm] = useState({ name:'', description:'', mc_version:'1.20.1', loader:'forge', loader_version:'', visibility:'private', join_mode:'open' })
   const [error, setError] = useState('')
   const [mcVersions, setMcVersions] = useState<string[]>(FALLBACK_MC_VERSIONS)
-  const [idStatus, setIdStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle')
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }))
 
   useEffect(() => {
@@ -17,22 +16,6 @@ export default function CreatePack() {
       if (vs && vs.length > 0) setMcVersions(vs)
     })
   }, [])
-
-  // Best-effort — reuses the existing pack-detail lookup rather than a
-  // dedicated endpoint, so a 404 means available and anything else means taken.
-  useEffect(() => {
-    if (!form.id.trim()) { setIdStatus('idle'); return }
-    setIdStatus('checking')
-    const t = setTimeout(async () => {
-      try {
-        await window.api.getModpack(form.id.trim())
-        setIdStatus('taken')
-      } catch (e: any) {
-        setIdStatus(e?.response?.status === 404 ? 'available' : 'idle')
-      }
-    }, 500)
-    return () => clearTimeout(t)
-  }, [form.id])
 
   const handleCreate = async () => {
     setError('')
@@ -53,13 +36,6 @@ export default function CreatePack() {
           <div>
             <label style={{ display:'block', marginBottom:6, color:'#a5b4fc', fontSize:13 }}>Pack Name</label>
             <input className="input" value={form.name} onChange={e => set('name', e.target.value)} placeholder="My Awesome Pack" />
-          </div>
-          <div>
-            <label style={{ display:'block', marginBottom:6, color:'#a5b4fc', fontSize:13 }}>Pack ID <span style={{ color:'#6b6b8a', fontWeight:'normal' }}>(friends use this to join)</span></label>
-            <input className="input" value={form.id} onChange={e => set('id', e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))} placeholder="my-awesome-pack" />
-            {idStatus === 'checking' && <p style={{ color:'#6b6b8a', fontSize:12, marginTop:4 }}>Checking availability...</p>}
-            {idStatus === 'available' && <p style={{ color:'#4ade80', fontSize:12, marginTop:4 }}>✓ Available</p>}
-            {idStatus === 'taken' && <p style={{ color:'#f87171', fontSize:12, marginTop:4 }}>✕ Already taken</p>}
           </div>
           <div>
             <label style={{ display:'block', marginBottom:6, color:'#a5b4fc', fontSize:13 }}>Description</label>

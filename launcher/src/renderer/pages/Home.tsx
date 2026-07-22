@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { ModpackMeta, MyJoinRequest } from '../../shared/types'
 import ReportModal from '../components/ReportModal'
+import DeleteAccountModal from '../components/DeleteAccountModal'
 
 const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
   owner: { bg: '#3b0764', color: '#c084fc' },
@@ -19,6 +20,7 @@ export default function Home() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [openReportCount, setOpenReportCount] = useState(0)
   const [reportPack, setReportPack] = useState<ModpackMeta | null>(null)
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false)
   const nav = useNavigate()
 
   useEffect(() => {
@@ -62,6 +64,11 @@ export default function Home() {
   }
 
   const handleLogout = async () => {
+    await window.api.logout()
+    nav('/login')
+  }
+
+  const handleAccountDeleted = async () => {
     await window.api.logout()
     nav('/login')
   }
@@ -157,6 +164,22 @@ export default function Home() {
           onClose={() => setReportPack(null)}
         />
       )}
+
+      {showDeleteAccount && (
+        <DeleteAccountModal
+          onClose={() => setShowDeleteAccount(false)}
+          onDeleted={handleAccountDeleted}
+        />
+      )}
+
+      <div style={{ textAlign:'center', marginTop:40 }}>
+        <button
+          onClick={() => setShowDeleteAccount(true)}
+          style={{ background:'none', border:'none', color:'#6b6b8a', fontSize:12, cursor:'pointer', textDecoration:'underline' }}
+        >
+          Delete My Account
+        </button>
+      </div>
     </div>
   )
 }

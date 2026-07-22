@@ -39,6 +39,7 @@ const ACTION_LABELS: Record<string, string> = {
   'member.remove':      'removed member',
   'member.join':        'joined the pack',
   'member.leave':       'left the pack',
+  'member.account_deleted': 'left the pack (account deleted)',
   'member.request':     'requested to join',
   'member.approve':     'approved join request for',
   'member.deny':        'denied join request for',
@@ -53,7 +54,7 @@ const ACTION_LABELS: Record<string, string> = {
 }
 
 function actionColor(action: string): string {
-  if (action.endsWith('.remove') || action === 'member.leave' || action === 'member.deny') return '#f87171'
+  if (action.endsWith('.remove') || action === 'member.leave' || action === 'member.deny' || action === 'member.account_deleted') return '#f87171'
   if (action.endsWith('.add') || action === 'member.join' || action === 'member.approve') return '#4ade80'
   if (action === 'member.request') return '#fbbf24'
   if (action.endsWith('.update') || action.endsWith('.role_change')) return '#fbbf24'
