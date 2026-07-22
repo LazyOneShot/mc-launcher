@@ -73,7 +73,9 @@ export function launchHandlers() {
     if (!tokens) throw new Error('Not logged in')
 
     progress(win, 'Fetching modpack manifest...')
-    const { data: pack }: { data: ModpackFull } = await axios.get(`${API}/modpacks/${packId}`)
+    const { data: pack }: { data: ModpackFull } = await axios.get(`${API}/modpacks/${packId}`, {
+      headers: { Authorization: `Bearer ${tokens.access_token}` }
+    })
 
     const root = packDir(packId)
     const modsDir = path.join(root, 'mods')
