@@ -92,6 +92,12 @@ export default function Account() {
           onDeleted={handleAccountDeleted}
         />
       )}
+
+      <p style={{ color:'#6b6b8a', fontSize:12, marginTop:20, textAlign:'center' }}>
+        <a href="https://github.com/LazyOneShot/mc-launcher/blob/main/TERMS.md" target="_blank" rel="noreferrer" style={{ color:'#8888aa' }}>Terms of Service</a>
+        {' '}·{' '}
+        <a href="https://github.com/LazyOneShot/mc-launcher/blob/main/PRIVACY.md" target="_blank" rel="noreferrer" style={{ color:'#8888aa' }}>Privacy Policy</a>
+      </p>
     </div>
   )
 }
