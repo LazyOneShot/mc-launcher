@@ -9,6 +9,7 @@ import PackDetail from './pages/PackDetail'
 import CreatePack from './pages/CreatePack'
 import BrowsePacks from './pages/BrowsePacks'
 import AdminPanel from './pages/AdminPanel'
+import Account from './pages/Account'
 import UpdateBanner from './components/UpdateBanner'
 import TitleBar from './components/TitleBar'
 import VersionBadge from './components/VersionBadge'
@@ -33,6 +34,7 @@ function App() {
           <Route path="/create" element={<CreatePack />} />
           <Route path="/browse" element={<BrowsePacks />} />
           <Route path="/admin" element={<AdminPanel />} />
+          <Route path="/account" element={<Account />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

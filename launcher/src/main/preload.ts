@@ -80,6 +80,8 @@ contextBridge.exposeInMainWorld('api', {
 
   // Account
   deleteAccount:      ()                                     => ipcRenderer.invoke('account:delete'),
+  pickSkinFile:       ()                                     => ipcRenderer.invoke('account:pickSkinFile'),
+  uploadSkin:         (filePath: string, variant: 'classic' | 'slim') => ipcRenderer.invoke('account:uploadSkin', filePath, variant),
 
   // Versions
   getMcVersions:      ()                                    => ipcRenderer.invoke('versions:mc'),
