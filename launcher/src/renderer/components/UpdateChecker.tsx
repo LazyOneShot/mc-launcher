@@ -16,6 +16,7 @@ export default function UpdateChecker({ packId, onClose, onApplied }: Props) {
   const [applying, setApplying] = useState<string | null>(null)
   const [applied, setApplied] = useState<string[]>([])
   const [failed, setFailed] = useState<Record<string, string>>({})
+  const [downloading, setDownloading] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -44,6 +45,16 @@ export default function UpdateChecker({ packId, onClose, onApplied }: Props) {
       setFailed(f => ({ ...f, [u.mod_id]: e?.response?.data?.detail || e?.message || 'failed' }))
     }
     setApplying(null)
+  }
+
+  const downloadOne = async (u: UpdateCandidate) => {
+    setDownloading(u.mod_id)
+    try {
+      await window.api.downloadMod(u.new_filename, u.url)
+    } catch {
+      // user cancelled, or the presigned URL expired — nothing worth surfacing
+    }
+    setDownloading(null)
   }
 
   const applyAll = async () => {
@@ -135,6 +146,16 @@ export default function UpdateChecker({ packId, onClose, onApplied }: Props) {
                       </div>
                       {err && <div style={{ color: '#f87171', fontSize: 11, marginTop: 3 }}>{err}</div>}
                     </div>
+                    <button className="icon-btn" title="Download updated mod"
+                      disabled={downloading === u.mod_id}
+                      onClick={() => downloadOne(u)}>
+                      {downloading === u.mod_id
+                        ? '…'
+                        : <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ display:'block' }}>
+                            <path d="M8 1v9M8 10L4.5 6.5M8 10l3.5-3.5M2 13h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                      }
+                    </button>
                     <button
                       className={isApplied ? 'btn btn-secondary' : 'btn btn-success'}
                       style={{ padding: '6px 14px', fontSize: 12 }}
